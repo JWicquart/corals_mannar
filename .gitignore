@@ -1,0 +1,20 @@
+# Base #
+########
+
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+
+# R folder #
+############
+
+R/*.html
+
+# data folder #
+###############
+
+data/extra/
+data/merge/
+data/raw/
+data/*.csv
