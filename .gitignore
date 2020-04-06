@@ -14,7 +14,4 @@ R/*.html
 # data folder #
 ###############
 
-data/extra/
-data/merge/
-data/raw/
-data/*.csv
+data/

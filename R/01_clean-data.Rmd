@@ -36,9 +36,33 @@ library(readxl)
 
 ```{r}
 
+# 1. Initizalize the dataframe ----
 
+data_benthos <- read_excel("./../data/01-raw_benthic-data_2005-2018_year-wise.xlsx", sheet = 1) %>% 
+  mutate(Year = excel_sheets(path = "./../data/01-raw_benthic-data_2005-2018_year-wise.xlsx")[1])
 
+# 2. Make a loop to bind all sheets ----
 
+for (i in 2:13) {
+  
+  data_benthos <- data_benthos %>% 
+    bind_rows(., read_excel("./../data/01-raw_benthic-data_2005-2018_year-wise.xlsx", sheet = i) %>% 
+                 mutate(Year = excel_sheets(path = "./../data/01-raw_benthic-data_2005-2018_year-wise.xlsx")[i]))
+
+}
+
+# 3. Clean the data ----
+
+data_benthos <- data_benthos %>% 
+  filter(!(is.na(Island))) %>% 
+  select(-Region, -...21) %>% 
+  pivot_longer("ACB":"Abiotic", names_to = "Category", values_to = "Cover") %>% 
+  mutate(Year = str_extract(Year, "[[:digit:]]+"))
+
+# 4. Export the data ----
+
+write.csv2(data_benthos, "./../data/02-clean_benthic-data.csv")
+  
 ```
 
 ## Fish data
@@ -47,7 +71,7 @@ library(readxl)
 
 # 1. Fish data from 2015 ----
 
-# 1.1 Initizalize the data --
+# 1.1 Initizalize the dataframe --
 
 data_fish_2015 <- read_excel("./../data/01-raw_fish-data_2015.xlsx", sheet = 1) %>% 
   mutate(Site = excel_sheets(path = "./../data/01-raw_fish-data_2015.xlsx")[1])
@@ -76,7 +100,7 @@ data_fish_2015 <- data_fish_2015 %>%
 
 # 1. Fish data from 2016 ----
 
-# 1.1 Initizalize the data --
+# 1.1 Initizalize the dataframe --
 
 data_fish_2016 <- read_excel("./../data/01-raw_fish-data_2016.xlsx", sheet = 1) %>% 
   mutate(Site = excel_sheets(path = "./../data/01-raw_fish-data_2016.xlsx")[1])
@@ -105,7 +129,7 @@ data_fish_2016 <- data_fish_2016 %>%
 
 # 1. Fish data from 2017 ----
 
-# 1.1 Initizalize the data --
+# 1.1 Initizalize the dataframe --
 
 data_fish_2017 <- read_excel("./../data/01-raw_fish-data_2017.xlsx", sheet = 1) %>% 
   mutate(Site = excel_sheets(path = "./../data/01-raw_fish-data_2017.xlsx")[1])
@@ -134,7 +158,7 @@ data_fish_2017 <- data_fish_2017 %>%
 
 # 1. Fish data from 2018 ----
 
-# 1.1 Initizalize the data --
+# 1.1 Initizalize the dataframe --
 
 data_fish_2018 <- read_excel("./../data/01-raw_fish-data_2018.xlsx", sheet = 1) %>% 
   mutate(Site = excel_sheets(path = "./../data/01-raw_fish-data_2018.xlsx")[1])
@@ -161,7 +185,7 @@ data_fish_2018 <- data_fish_2018 %>%
 
 ```{r}
 
-# 1. Bind the files for each years ----
+# 1. Bind the dataframe for each years ----
 
 data_fish <- data_fish_2015 %>% 
   bind_rows(., data_fish_2016) %>% 
@@ -169,7 +193,11 @@ data_fish <- data_fish_2015 %>%
   bind_rows(., data_fish_2018) %>% 
   filter(Abundance != 0, !(is.na(Abundance)))
 
-# 2. Remove useless variables ----
+# 2. Export the data ----
+
+write.csv2(data_fish, "./../data/02-clean_fish-data.csv")
+
+# 3. Remove useless variables ----
 
 rm(i, data_fish_2015, data_fish_2016, data_fish_2017, data_fish_2018)
 
