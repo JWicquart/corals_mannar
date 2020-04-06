@@ -1,0 +1,189 @@
+---
+title: "Clean data"
+author : "Jeremy Wicquart"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    theme: "cosmo"
+    highlight: tango
+    toc: true
+    toc_float:
+      collapsed: false
+      smooth_scroll: false
+    toc_depth: 4
+---
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE)
+
+```
+
+# Defining functions and packages
+
+```{r base, fig.height=6, fig.width=12}
+
+# 1. Recquired packages ----
+
+library(tidyverse)
+library(readxl)
+
+```
+
+# Data cleaning
+
+## Benthic data
+
+```{r}
+
+
+
+
+```
+
+## Fish data
+
+```{r}
+
+# 1. Fish data from 2015 ----
+
+# 1.1 Initizalize the data --
+
+data_fish_2015 <- read_excel("./../data/01-raw_fish-data_2015.xlsx", sheet = 1) %>% 
+  mutate(Site = excel_sheets(path = "./../data/01-raw_fish-data_2015.xlsx")[1])
+
+# 1.2 Make a loop to bind all sheets --
+
+for (i in 2:21) {
+  
+  data_fish_2015 <- data_fish_2015 %>% 
+    bind_rows(., read_excel("./../data/01-raw_fish-data_2015.xlsx", sheet = i) %>% 
+                 mutate(Site = excel_sheets(path = "./../data/01-raw_fish-data_2015.xlsx")[i]))
+
+}
+
+# 1.3 Clean the data --
+
+data_fish_2015 <- data_fish_2015 %>% 
+  filter(!(is.na(S.No.))) %>% 
+  select(-S.No., -Average, -SD, -SE, -...14, -...15, -...16, -...17, -...18) %>% 
+  pivot_longer("Tr-1":"Tr-6", names_to = "Transect", values_to = "Abundance") %>% 
+  mutate(Year = 2015)
+
+```
+
+```{r}
+
+# 1. Fish data from 2016 ----
+
+# 1.1 Initizalize the data --
+
+data_fish_2016 <- read_excel("./../data/01-raw_fish-data_2016.xlsx", sheet = 1) %>% 
+  mutate(Site = excel_sheets(path = "./../data/01-raw_fish-data_2016.xlsx")[1])
+
+# 1.2 Make a loop to bind all sheets --
+
+for (i in 2:21) {
+  
+  data_fish_2016 <- data_fish_2016 %>% 
+    bind_rows(., read_excel("./../data/01-raw_fish-data_2016.xlsx", sheet = i) %>% 
+                 mutate(Site = excel_sheets(path = "./../data/01-raw_fish-data_2016.xlsx")[i]))
+
+}
+
+# 1.3 Clean the data --
+
+data_fish_2016 <- data_fish_2016 %>% 
+  filter(!(is.na(S.No.))) %>% 
+  select(-S.No., -Average) %>% 
+  pivot_longer("Tr-1":"Tr-6", names_to = "Transect", values_to = "Abundance") %>% 
+  mutate(Year = 2016)
+
+```
+
+```{r}
+
+# 1. Fish data from 2017 ----
+
+# 1.1 Initizalize the data --
+
+data_fish_2017 <- read_excel("./../data/01-raw_fish-data_2017.xlsx", sheet = 1) %>% 
+  mutate(Site = excel_sheets(path = "./../data/01-raw_fish-data_2017.xlsx")[1])
+
+# 1.2 Make a loop to bind all sheets --
+
+for (i in 2:21) {
+  
+  data_fish_2017 <- data_fish_2017 %>% 
+    bind_rows(., read_excel("./../data/01-raw_fish-data_2017.xlsx", sheet = i) %>% 
+                 mutate(Site = excel_sheets(path = "./../data/01-raw_fish-data_2017.xlsx")[i]))
+
+}
+
+# 1.3 Clean the data --
+
+data_fish_2017 <- data_fish_2017 %>% 
+  filter(!(is.na(S.No.))) %>% 
+  select(-S.No., -Average) %>% 
+  pivot_longer("Tr-1":"Tr-6", names_to = "Transect", values_to = "Abundance") %>% 
+  mutate(Year = 2017)
+
+```
+
+```{r}
+
+# 1. Fish data from 2018 ----
+
+# 1.1 Initizalize the data --
+
+data_fish_2018 <- read_excel("./../data/01-raw_fish-data_2018.xlsx", sheet = 1) %>% 
+  mutate(Site = excel_sheets(path = "./../data/01-raw_fish-data_2018.xlsx")[1])
+
+# 1.2 Make a loop to bind all sheets --
+
+for (i in 2:21) {
+  
+  data_fish_2018 <- data_fish_2018 %>% 
+    bind_rows(., read_excel("./../data/01-raw_fish-data_2018.xlsx", sheet = i) %>% 
+                 mutate(Site = excel_sheets(path = "./../data/01-raw_fish-data_2018.xlsx")[i]))
+
+}
+
+# 1.3 Clean the data --
+
+data_fish_2018 <- data_fish_2018 %>% 
+  filter(!(is.na(S.No.))) %>% 
+  select(-S.No., -Average, -...12, -...13, -...14, -...15, -...16, -...17, -...18) %>% 
+  pivot_longer("Tr-1":"Tr-6", names_to = "Transect", values_to = "Abundance") %>% 
+  mutate(Year = 2018)
+
+```
+
+```{r}
+
+# 1. Bind the files for each years ----
+
+data_fish <- data_fish_2015 %>% 
+  bind_rows(., data_fish_2016) %>% 
+  bind_rows(., data_fish_2017) %>% 
+  bind_rows(., data_fish_2018) %>% 
+  filter(Abundance != 0, !(is.na(Abundance)))
+
+# 2. Remove useless variables ----
+
+rm(i, data_fish_2015, data_fish_2016, data_fish_2017, data_fish_2018)
+
+```
+
+# Reproducibility
+
+```{r reprod}
+
+# 1. Reproducibility ----
+
+sessionInfo()
+
+```
+
+---
+Jeremy WICQUART | jeremywicquart@gmail.com | `r format(Sys.time())`
