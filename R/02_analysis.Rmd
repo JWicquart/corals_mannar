@@ -1,0 +1,153 @@
+---
+title: "Analysis data"
+author : "Jeremy Wicquart"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    theme: "cosmo"
+    highlight: tango
+    toc: true
+    toc_float:
+      collapsed: false
+      smooth_scroll: false
+    toc_depth: 4
+---
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE)
+
+```
+
+# Defining functions and packages
+
+```{r base, fig.height=6, fig.width=12}
+
+# 1. Recquired packages ----
+
+library(tidyverse)
+library(vegan)
+library(mgcv)
+
+# 2. Import functions ----
+
+source("functions/graphical_par.R")
+source("functions/theme_graph.R")
+
+# 3. Load the data ----
+
+data_benthos <- read.csv2("./../data/02-clean_benthic-data.csv")
+
+```
+
+# Data Analysis
+
+## Benthic data
+
+### Visual exploration
+
+```{r fig.width=15, fig.height=15}
+
+# 1. Evolution of main benthic categories by islands ----
+
+data_benthos %>% 
+  filter(!(Category %in% c("Others", "Soft coral"))) %>% 
+  mutate(Category = as.character(Category),
+         Category = ifelse(Category %in% c("ACB", "ACD", "ACE", "ACF", "ACT", "CB", "CE", "CF", "CM", "CS"), "Coral", Category)) %>% 
+  group_by(Transect, Site, Island, Year, Category) %>% 
+  summarise(Cover = sum(Cover)) %>% 
+  ungroup() %>% 
+  ggplot(data = ., aes(x = Year, y = Cover, color = Category)) +
+    geom_smooth() +
+    facet_wrap(~Island) +
+    lims(x = c(2005, 2020)) +
+    theme_graph()
+
+```
+
+```{r fig.width=15, fig.height=15}
+
+# 2. Evolution of coral shape by islands ----
+
+# "ACB" = "Acropora branching", "ACT" = "Acropora table coral", "ACD" = "Acropora digitate",
+# "ACF" = "Acropora foliose", "ACE" = "Acropora encrusting", "CM" = "Coral massive",
+# "CB" = "Coral branching", "CS" = "Coral sub massive", "CF" = "Coral foliose", "CE" = "Coral encrusting"
+
+data_benthos %>% 
+  filter(!(Category %in% c("Abiotic", "Soft coral", "Others", "Algae", "CCA"))) %>% 
+  mutate(Category = str_replace_all(Category, c("ACB" = "Branching",
+                                                "ACT" = "Tabular",
+                                                "ACD" = "Digitate",
+                                                "ACF" = "Foliose",
+                                                "ACE" = "Encrusting",
+                                                "CM" = "Massive",
+                                                "CB" = "Branching",
+                                                "CS" = "Submassive",
+                                                "CF" = "Foliose",
+                                                "CE" = "Encrusting"))) %>% 
+  group_by(Transect, Site, Island, Year, Category) %>% 
+  summarise(Cover = sum(Cover)) %>% 
+  ungroup() %>% 
+  ggplot(data = ., aes(x = Year, y = Cover, color = Category)) +
+    geom_smooth() +
+    facet_wrap(~Island) +
+    lims(x = c(2005, 2020)) +
+    theme_graph()
+
+```
+
+### NMDS
+
+```{r}
+
+# 1. Change data format ----
+
+data_corr <- data_benthos %>% 
+  filter(Island == "Krusadai") %>% 
+  group_by(Year, Category) %>% 
+  summarise(Cover = mean(Cover)) %>% 
+  pivot_wider(names_from = "Category", values_from = "Cover") %>% 
+  replace(., is.na(.), 0) %>% # Replace all NA by 0
+  as.data.frame(.)
+
+# 1.2 Transform to contingency table --
+
+rownames(data_corr) <- data_corr[,1]
+
+data_corr <- data_corr[,-1]
+
+# 2. Make the NMDS ----
+
+#nmds_results <- metaMDS(data_corr)
+
+```
+
+## Fish data
+
+### Visual exploration
+
+```{r}
+
+
+
+```
+
+### NMDS
+
+```{r}
+
+
+```
+
+# Reproducibility
+
+```{r reprod}
+
+# 1. Reproducibility ----
+
+sessionInfo()
+
+```
+
+---
+Jeremy WICQUART | jeremywicquart@gmail.com | `r format(Sys.time())`

@@ -58,11 +58,13 @@ data_benthos <- data_benthos %>%
   filter(!(is.na(Island))) %>% 
   select(-Region, -...21) %>% 
   pivot_longer("ACB":"Abiotic", names_to = "Category", values_to = "Cover") %>% 
-  mutate(Year = str_extract(Year, "[[:digit:]]+"))
+  mutate(Year = str_extract(Year, "[[:digit:]]+")) %>% 
+  filter(Cover != 0, !(is.na(Cover))) %>% 
+  rename(Transect = LIT_Number, Site = Site_Number)
 
 # 4. Export the data ----
 
-write.csv2(data_benthos, "./../data/02-clean_benthic-data.csv")
+write.csv2(data_benthos, "./../data/02-clean_benthic-data.csv", row.names = FALSE)
   
 ```
 
@@ -211,7 +213,7 @@ data_fish <- read_excel("./../data/01-raw_fish-data_site-details.xlsx", sheet = 
 
 # 3. Export the data ----
 
-write.csv2(data_fish, "./../data/02-clean_fish-data.csv")
+write.csv2(data_fish, "./../data/02-clean_fish-data.csv", row.names = FALSE)
 
 # 4. Remove useless variables ----
 
