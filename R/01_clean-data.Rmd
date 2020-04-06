@@ -27,6 +27,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 library(tidyverse)
 library(readxl)
+library(zoo)
 
 ```
 
@@ -191,13 +192,28 @@ data_fish <- data_fish_2015 %>%
   bind_rows(., data_fish_2016) %>% 
   bind_rows(., data_fish_2017) %>% 
   bind_rows(., data_fish_2018) %>% 
-  filter(Abundance != 0, !(is.na(Abundance)))
+  filter(Abundance != 0, !(is.na(Abundance))) %>% 
+  mutate(Site = str_replace_all(Site, c("Kariyachalli" = "Kariyachllai",
+                                        "Manoloiputti" = "Manoliputti",
+                                        "Kurusadai" = "Krusadai",
+                                        "poomarichan" = "Poomarichan",
+                                        "Pullivaasal" = "Pullivasal",
+                                        "kurusadai" = "Krusadai")))
 
-# 2. Export the data ----
+# 2. Merge with site coordinates
+
+data_fish <- read_excel("./../data/01-raw_fish-data_site-details.xlsx", sheet = 1) %>% 
+  rename(Site = 1, Transect = 2, Longitude = 3, Latitude = 4) %>% 
+  mutate(Site = na.locf(Site),
+         Latitude = na.locf(Latitude), 
+         Longitude = na.locf(Longitude)) %>% 
+  left_join(data_fish, .)
+
+# 3. Export the data ----
 
 write.csv2(data_fish, "./../data/02-clean_fish-data.csv")
 
-# 3. Remove useless variables ----
+# 4. Remove useless variables ----
 
 rm(i, data_fish_2015, data_fish_2016, data_fish_2017, data_fish_2018)
 
