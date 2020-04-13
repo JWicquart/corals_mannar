@@ -65,8 +65,14 @@ data_benthos %>%
     geom_smooth(se = FALSE) +
     facet_wrap(~Island, nrow = 3) +
     lims(x = c(2005, 2020)) +
+    geom_vline(xintercept = 2010, linetype = "dashed", color = "black") +
+    geom_vline(xintercept = 2016, linetype = "dashed", color = "black") +
+    geom_vline(xintercept = 2013, linetype = "dashed", color = "red") +
     theme_graph() +
-    theme(legend.key = element_rect(colour = "transparent", fill = "white"))
+    theme(legend.key = element_rect(colour = "transparent", fill = "white")) +
+    labs(y = "Cover (%)", 
+         title = "Temporal evolution of main benthic categories in the Gulf of Mannar",
+         subtitle = "Black dashed lines are bleaching event")
 
 # 2. Save the plot ----
 
@@ -104,8 +110,14 @@ data_benthos %>%
     geom_smooth(se = FALSE) + 
     facet_wrap(~Island, nrow = 3) +
     lims(x = c(2005, 2020), y = c(0, 50)) +
+    geom_vline(xintercept = 2010, linetype = "dashed", color = "black") +
+    geom_vline(xintercept = 2016, linetype = "dashed", color = "black") +
+    geom_vline(xintercept = 2013, linetype = "dashed", color = "red") +
     theme_graph() +
-    theme(legend.key = element_rect(colour = "transparent", fill = "white"))
+    theme(legend.key = element_rect(colour = "transparent", fill = "white")) +
+    labs(y = "Cover (%)", 
+         title = "Temporal evolution of coral shapes in the Gulf of Mannar",
+         subtitle = "Black dashed lines are bleaching event")
 
 # 2. Save the plot ----
 
