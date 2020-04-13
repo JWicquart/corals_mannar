@@ -38,6 +38,8 @@ source("functions/theme_graph.R")
 
 data_benthos <- read.csv2("./../data/02-clean_benthic-data.csv")
 
+data_fish <- read.csv2("./../data/02-clean_fish-data.csv")
+
 ```
 
 # Data Analysis
@@ -46,7 +48,7 @@ data_benthos <- read.csv2("./../data/02-clean_benthic-data.csv")
 
 ### Visual exploration
 
-```{r fig.width=15, fig.height=15}
+```{r fig.width=25, fig.height=10}
 
 # 1. Evolution of main benthic categories by islands ----
 
@@ -58,16 +60,24 @@ data_benthos %>%
   summarise(Cover = sum(Cover)) %>% 
   ungroup() %>% 
   ggplot(data = ., aes(x = Year, y = Cover, color = Category)) +
-    geom_smooth() +
-    facet_wrap(~Island) +
+    geom_point(alpha = 0.1) +
+    geom_smooth(se = TRUE, show.legend = FALSE) +
+    geom_smooth(se = FALSE) +
+    facet_wrap(~Island, nrow = 3) +
     lims(x = c(2005, 2020)) +
-    theme_graph()
+    theme_graph() +
+    theme(legend.key = element_rect(colour = "transparent", fill = "white"))
+
+# 2. Save the plot ----
+
+ggsave("./../figs/01_benthos_evolution-main-benthic-categories-by-islands.pdf", height = 10, width = 25) # PDF
+ggsave("./../figs/01_benthos_evolution-main-benthic-categories-by-islands.png", height = 10, width = 25) # PNG
 
 ```
 
-```{r fig.width=15, fig.height=15}
+```{r fig.width=25, fig.height=10}
 
-# 2. Evolution of coral shape by islands ----
+# 1. Evolution of coral shape by islands ----
 
 # "ACB" = "Acropora branching", "ACT" = "Acropora table coral", "ACD" = "Acropora digitate",
 # "ACF" = "Acropora foliose", "ACE" = "Acropora encrusting", "CM" = "Coral massive",
@@ -89,10 +99,18 @@ data_benthos %>%
   summarise(Cover = sum(Cover)) %>% 
   ungroup() %>% 
   ggplot(data = ., aes(x = Year, y = Cover, color = Category)) +
-    geom_smooth() +
-    facet_wrap(~Island) +
-    lims(x = c(2005, 2020)) +
-    theme_graph()
+    geom_point(alpha = 0.1) +
+    geom_smooth(se = TRUE, show.legend = FALSE) +
+    geom_smooth(se = FALSE) + 
+    facet_wrap(~Island, nrow = 3) +
+    lims(x = c(2005, 2020), y = c(0, 50)) +
+    theme_graph() +
+    theme(legend.key = element_rect(colour = "transparent", fill = "white"))
+
+# 2. Save the plot ----
+
+ggsave("./../figs/01_benthos_evolution-coral-shape-by-islands.pdf", height = 10, width = 25) # PDF
+ggsave("./../figs/01_benthos_evolution-coral-shape-by-islands.png", height = 10, width = 25) # PNG
 
 ```
 
@@ -127,7 +145,6 @@ data_corr <- data_corr[,-1]
 ### Visual exploration
 
 ```{r}
-
 
 
 ```
