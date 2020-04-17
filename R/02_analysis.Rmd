@@ -83,7 +83,7 @@ ggsave("./../figs/01_benthos_evolution-main-benthic-categories-by-islands.png", 
 
 ```{r fig.width=25, fig.height=10}
 
-# 1. Evolution of coral shape by islands ----
+# 1. Temporal evolution of coral shape by islands ----
 
 # "ACB" = "Acropora branching", "ACT" = "Acropora table coral", "ACD" = "Acropora digitate",
 # "ACF" = "Acropora foliose", "ACE" = "Acropora encrusting", "CM" = "Coral massive",
@@ -123,6 +123,46 @@ data_benthos %>%
 
 ggsave("./../figs/01_benthos_evolution-coral-shape-by-islands.pdf", height = 10, width = 25) # PDF
 ggsave("./../figs/01_benthos_evolution-coral-shape-by-islands.png", height = 10, width = 25) # PNG
+
+```
+
+```{r fig.width=25, fig.height=10}
+
+# 1. Relative contribution of coral shape by islands ----
+
+# "ACB" = "Acropora branching", "ACT" = "Acropora table coral", "ACD" = "Acropora digitate",
+# "ACF" = "Acropora foliose", "ACE" = "Acropora encrusting", "CM" = "Coral massive",
+# "CB" = "Coral branching", "CS" = "Coral sub massive", "CF" = "Coral foliose", "CE" = "Coral encrusting"
+
+data_benthos %>% 
+  filter(!(Category %in% c("Abiotic", "Soft coral", "Others", "Algae", "CCA"))) %>% 
+  mutate(Category = str_replace_all(Category, c("ACB" = "Branching",
+                                                "ACT" = "Tabular",
+                                                "ACD" = "Digitate",
+                                                "ACF" = "Foliose",
+                                                "ACE" = "Encrusting",
+                                                "CM" = "Massive",
+                                                "CB" = "Branching",
+                                                "CS" = "Submassive",
+                                                "CF" = "Foliose",
+                                                "CE" = "Encrusting"))) %>% 
+  group_by(Transect, Site, Island, Year, Category) %>% 
+  summarise(Cover = sum(Cover)) %>% 
+  ungroup() %>% 
+  group_by(Island, Year, Category) %>% 
+  summarise(Absolute = mean(Cover)) %>% 
+  mutate(Relative = (Absolute*100)/sum(Absolute)) %>% 
+  ungroup() %>% 
+  ggplot(data = ., aes(x = Year, y = Relative, fill = Category)) +
+    geom_bar(stat = "identity", width = 1) +
+    facet_wrap(~Island, nrow = 3) +
+    theme_graph() +
+    labs(y = "Relative contribution to total coral cover (%)")
+
+# 2. Save the plot ----
+
+ggsave("./../figs/01_benthos_relative-contribution-coral-shape-by-islands.pdf", height = 10, width = 25) # PDF
+ggsave("./../figs/01_benthos_relative-contribution-coral-shape-by-islands.png", height = 10, width = 25) # PNG
 
 ```
 
