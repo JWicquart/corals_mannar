@@ -72,7 +72,7 @@ data_benthos %>%
     theme(legend.key = element_rect(colour = "transparent", fill = "white")) +
     labs(y = "Cover (%)", 
          title = "Temporal evolution of main benthic categories in the Gulf of Mannar",
-         subtitle = "Black dashed lines are bleaching event")
+         subtitle = "Black dashed lines are bleaching events, red dahsed line is a likely disturbance")
 
 # 2. Save the plot ----
 
@@ -117,7 +117,7 @@ data_benthos %>%
     theme(legend.key = element_rect(colour = "transparent", fill = "white")) +
     labs(y = "Cover (%)", 
          title = "Temporal evolution of coral shapes in the Gulf of Mannar",
-         subtitle = "Black dashed lines are bleaching event")
+         subtitle = "Black dashed lines are bleaching events, red dahsed line is a likely disturbance")
 
 # 2. Save the plot ----
 

@@ -52,11 +52,16 @@ for (i in 2:13) {
 
 }
 
+data_benthos <- read_excel("./../data/01-raw_benthic-data_2019.xlsx", sheet = 1, skip = 1, n_max = 252) %>% 
+  mutate(Year = as.character(Year)) %>% 
+  select(-LCC) %>% # LCC = Live Coral Cover = sum of coral categories
+  bind_rows(., data_benthos)
+
 # 3. Clean the data ----
 
 data_benthos <- data_benthos %>% 
   filter(!(is.na(Island))) %>% 
-  select(-Region, -...21) %>% 
+  select(-Region, -...21, -...22) %>% 
   pivot_longer("ACB":"Abiotic", names_to = "Category", values_to = "Cover") %>% 
   mutate(Year = str_extract(Year, "[[:digit:]]+")) %>% 
   filter(Cover != 0, !(is.na(Cover))) %>% 
