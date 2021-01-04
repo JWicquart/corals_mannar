@@ -156,8 +156,13 @@ data_benthos %>%
   ggplot(data = ., aes(x = Year, y = Relative, fill = Category)) +
     geom_bar(stat = "identity", width = 1) +
     facet_wrap(~Island, nrow = 3) +
+    geom_vline(xintercept = 2010, linetype = "dashed", color = "black") +
+    geom_vline(xintercept = 2016, linetype = "dashed", color = "black") +
+    geom_vline(xintercept = 2013, linetype = "dashed", color = "red") +
     theme_graph() +
-    labs(y = "Relative contribution to total coral cover (%)")
+    labs(y = "Relative contribution to total coral cover (%)",
+         title = "Relative contribution of coral shapes to total coral cover in the Gulf of Mannar",
+         subtitle = "Black dashed lines are bleaching events, red dahsed line is a likely disturbance")
 
 # 2. Save the plot ----
 

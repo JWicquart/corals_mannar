@@ -1,0 +1,286 @@
+---
+title: "Analyses"
+author : "Jeremy Wicquart"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    theme: "cosmo"
+    highlight: tango
+    toc: true
+    toc_float:
+      collapsed: false
+      smooth_scroll: false
+    toc_depth: 4
+---
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE, fig.height = 10, fig.width = 25)
+
+```
+
+# Defining functions and packages
+
+```{r}
+
+# 1. Required packages ----
+
+library(tidyverse) # Core tidyverse packages
+library(readxl) # To read excel files
+library(lubridate) # To deal with dates
+library(broom) # To use models with tidyverse
+library(RcppRoll) # For rolling functions
+library(kableExtra) # For html tables
+library(formattable) # For html tables
+
+# 2. Import functions ----
+
+source("functions/graphical_par.R")
+source("functions/theme_graph.R")
+
+# 3. Set theme_graph() as the default ggplot theme ----
+
+theme_set(theme_graph())
+
+```
+
+# Bleaching prevalence
+
+```{r}
+
+# 1. File path ----
+
+file_path <- "./../data/raw_bleaching/3. Gulf of Mannar bleaching intensity, 2005-2020.xlsx"
+
+# 2. Import the first sheet ----
+
+data_bleaching <- read_xlsx(file_path, sheet = 2, col_types = "text") %>% 
+  select(1:4) %>% 
+  drop_na(LIT) %>% 
+  rename(replicate = 1, island = 2, year = 3, bleaching = 4)
+
+# 3. Loop to bind all the sheets ----
+
+for(i in 3:length(excel_sheets(file_path))){
+  
+  data_bleaching <- read_xlsx(file_path, sheet = i, col_types = "text") %>% 
+    select(1:4) %>% 
+    drop_na(LIT) %>% 
+    rename(replicate = 1, island = 2, year = 3, bleaching = 4) %>% 
+    bind_rows(data_bleaching, .)
+  
+}
+
+# 4. Modifications ----
+
+data_bleaching <- data_bleaching %>% 
+  mutate(year = as.numeric(as.character(year)),
+         bleaching = as.numeric(as.character(bleaching)))
+
+# 5. Plot ----
+
+ggplot(data_bleaching, aes(x = year, y = bleaching)) +
+  geom_point(col = "#bdc3c7", size = 1) +
+  stat_summary(fun.y = mean,
+               fun.ymin = function(x) mean(x) - sd(x), 
+               fun.ymax = function(x) mean(x) + sd(x), 
+               geom = "pointrange", col = "#d91e18", shape = 19) +
+  facet_wrap(~island, nrow = 3) +
+  labs(x = "Year", y = "Bleaching prevalence (%)")
+
+# 6. Save the plot ----
+
+ggsave("./../figs/02_bleaching-prevalence-by-site.png", height = 10, width = 25) # PNG
+
+```
+
+# Recruitment
+
+```{r fig.height=6, fig.width=12}
+
+# 1. File path ----
+
+file_path <- "./../data/raw_bleaching/6. recruitment, 2005 -2020.xlsx"
+
+# 2. Import the first sheet ----
+
+data_recruits <- read_xlsx(file_path, sheet = 1, col_types = "text", skip = 1) %>%
+  select(1:16) %>% 
+  rename(taxid = 1) %>% 
+  drop_na(taxid) %>% 
+  pivot_longer(2:ncol(.), names_to = "year", values_to = "recruit") %>% 
+  mutate(site = excel_sheets(path = file_path)[1])
+
+# 3. Loop to bind all the sheets ----
+
+for(i in 2:length(excel_sheets(file_path))){
+  
+  data_recruits <- read_xlsx(file_path, sheet = i, col_types = "text", skip = 1) %>% 
+    select(1:16) %>% 
+    rename(taxid = 1) %>% 
+    drop_na(taxid) %>% 
+    pivot_longer(2:ncol(.), names_to = "year", values_to = "recruit") %>% 
+    mutate(site = excel_sheets(path = file_path)[i]) %>% 
+    bind_rows(data_recruits, .)
+  
+}
+
+# 4. Modifications ----
+
+data_recruits <- data_recruits %>% 
+  mutate(year = str_replace_all(year, c("2003-2005" = "2004",
+                                        "Mar-2007" = "2007",
+                                        "Mar-2008" = "2008",
+                                        "Nov-2009" = "2009",
+                                        "Nov-2010" = "2010",
+                                        "Sep-2011" = "2011",
+                                        "Nov-2012" = "2012")),
+         year = as.numeric(year),
+         recruit = as.numeric(recruit))
+
+# 5. Plot ----
+
+ggplot(data_recruits, aes(x = year, y = recruit, color = taxid)) +
+  geom_point() +
+  geom_path() +
+  facet_wrap(~site)
+
+
+```
+
+# SST
+
+## Import data
+
+```{r}
+
+# 1. Load and modify the data ----
+
+data_sst <- read.csv2("./../data/03-sst-extracted-gom.csv") %>% 
+  mutate(date = as.Date(date),
+         island = str_split_fixed(site, "_", 2)[,1]) %>% 
+  group_by(island, date, year, sst) %>% 
+  summarise(sst = mean(sst))
+
+```
+
+## STT trends by site
+
+```{r}
+
+# 1. Make the plot ----
+
+ggplot(data = data_sst, aes(x = date, y = sst)) +
+  geom_path(color = "#6c7a89") +
+  facet_wrap(~island, scales = "free_y", nrow = 3) +
+  labs(x = "Year", y = "Sea Surface Temperature (°C)")
+
+# 2. Save the plot ----
+
+ggsave("./../figs/02_sst-by-site.png", height = 10, width = 25) # PNG
+
+```
+
+## STT trends by site annotated
+
+```{r}
+
+# 1. Make the plot ----
+
+ggplot(data = data_sst, aes(x = date, y = sst)) +
+  geom_path(color = "#6c7a89") +
+  facet_wrap(~island, scales = "free_y", nrow = 3) +
+  stat_smooth(method = "lm", col = "red") +
+  labs(x = "Year", y = "Sea Surface Temperature (°C)")
+
+# 2. Save the plot ----
+
+ggsave("./../figs/02_sst-annotated-by-site.png", height = 10, width = 25) # PNG
+
+```
+
+## Degree by decade
+
+```{r}
+
+data_sst %>%
+  mutate(date_num = as.numeric(date)) %>% 
+  # Linear model by island
+  group_by(island) %>% 
+  do(fit_sst = tidy(lm(sst ~ date_num, data = .))) %>% 
+  unnest(fit_sst) %>% 
+  # Misc. modifications
+  select(island, term, estimate) %>% 
+  pivot_wider(., names_from = term, values_from = estimate) %>% 
+  rename(intercept = 2, slope = 3) %>% 
+  # Calculate mean increase of °C by decade
+  mutate(diff_decade = ((slope*as.numeric(as.Date("2020-01-01")))+intercept) - ((slope*as.numeric(as.Date("2010-01-01")))+intercept)) %>% 
+  select(-slope, -intercept) %>% 
+  kable(., col.names = c("Island", "SST increase by decade (°C)"),
+        caption = "Table 1. Mean values of SST increase by decade (°C).") %>%
+  kable_styling(bootstrap_options = c("striped", "hover"))
+
+```
+
+## DHW
+
+```{r}
+
+# 1. Calculate the DHW ----
+
+data_sst_mmm <- data_sst %>% 
+  # Calculate mean sst by month for each site
+  mutate(month = month(date)) %>% 
+  group_by(island, month) %>% 
+  summarise(mean = mean(sst)) %>% 
+  ungroup() %>% 
+  # Extract Maximum Monthly Mean (MMM) for each site
+  group_by(island) %>% 
+  filter(mean == max(mean)) %>% 
+  select(-month) %>% 
+  # Calculate the bleaching threshold (MMM + 1°C)
+  mutate(threshold = mean + 1) %>% 
+  # Join with the SST data
+  left_join(data_sst, .) %>%
+  # Calculate Degree Heating Weeks
+  mutate(delta = ifelse(sst >= threshold, sst - threshold, 0)) %>% 
+  group_by(island) %>% 
+  arrange(date) %>% 
+  mutate(dhw = roll_sum(x = delta, n = 84, align = "right", fill = NA)) # 7 days * 12 weeks = 84 days
+
+# 2. Make the plot ----
+
+ggplot(data = data_sst_mmm, aes(x = date, y = dhw)) +
+  # Warning (NOAA)*
+  annotate("rect", xmin = as.Date("1985-01-01"), xmax = as.Date("2020-01-01"), ymin = 0, ymax = 4, fill = "#fcd670", alpha = .2) +
+  # Alert level 1 (NOAA)*
+  annotate("rect", xmin = as.Date("1985-01-01"), xmax = as.Date("2020-01-01"), ymin = 4, ymax = 8, fill = "#eb9532", alpha = .2) +
+  geom_hline(yintercept = 4, linetype = "dashed") +
+  # Alert level 2 (NOAA)*
+  geom_hline(yintercept = 8, linetype = "dashed") +
+  annotate("rect", xmin = as.Date("1985-01-01"), xmax = as.Date("2020-01-01"), ymin = 8, ymax = Inf, fill = "#d64541", alpha = .2) +
+  # DHW
+  geom_path(col = "black") +
+  facet_wrap(~island, nrow = 3) +
+  labs(x = "Year", y = "Degree Heating Weeks (°C)")
+
+# See https://sos.noaa.gov/datasets/coral-bleaching-alerts-real-time/
+
+# 3. Save the plot ----
+
+ggsave("./../figs/02_sst-degree-heating-weeks.png", height = 10, width = 25) # PNG
+
+```
+
+# Reproducibility
+
+```{r reprod}
+
+# 1. Reproducibility ----
+
+sessionInfo()
+
+```
+
+---
+Jeremy WICQUART | jeremywicquart@gmail.com | `r format(Sys.time())`
