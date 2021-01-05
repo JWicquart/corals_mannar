@@ -2,16 +2,18 @@
 ########
 
 .Rproj.user
+.Rproj
 .Rhistory
 .RData
 .Ruserdata
+*.html
 
-# R folder #
-############
-
-R/*.html
-
-# data folder #
-###############
+# folder #
+##########
 
 data/
+doc/
+pres/
+misc/
+figs/
+output/
