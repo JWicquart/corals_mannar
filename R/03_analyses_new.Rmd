@@ -32,6 +32,7 @@ library(broom) # To use models with tidyverse
 library(RcppRoll) # For rolling functions
 library(kableExtra) # For html tables
 library(formattable) # For html tables
+library(cowplot) # To assemble plots
 
 # 2. Import functions ----
 
@@ -77,18 +78,27 @@ data_bleaching <- data_bleaching %>%
   mutate(year = as.numeric(as.character(year)),
          bleaching = as.numeric(as.character(bleaching)))
 
-# 5. Plot ----
+# 5. Calculate the mean and SD ----
 
-ggplot(data_bleaching, aes(x = year, y = bleaching)) +
-  geom_point(col = "#bdc3c7", size = 1) +
-  stat_summary(fun.y = mean,
-               fun.ymin = function(x) mean(x) - sd(x), 
-               fun.ymax = function(x) mean(x) + sd(x), 
-               geom = "pointrange", col = "#d91e18", shape = 19) +
+data_bleaching_mean <- data_bleaching %>% 
+  group_by(island, year) %>% 
+  summarise(bleaching_mean = mean(bleaching),
+            bleaching_sd = sd(bleaching))
+
+# 6. Make the plot ----
+
+ggplot() +
+  geom_point(data = data_bleaching, aes(x = year, y = bleaching), col = "grey") +
+  geom_pointrange(data = data_bleaching_mean, 
+                  aes(x = year, 
+                      y = bleaching_mean, 
+                      ymin = bleaching_mean-bleaching_sd, 
+                      ymax = bleaching_mean+bleaching_sd), col = "red") +
+  geom_path(data = data_bleaching_mean, aes(x = year, y = bleaching_mean), col = "red") +
   facet_wrap(~island, nrow = 3) +
   labs(x = "Year", y = "Bleaching prevalence (%)")
 
-# 6. Save the plot ----
+# 7. Save the plot ----
 
 ggsave("./../figs/02_bleaching-prevalence-by-site.png", height = 10, width = 25) # PNG
 
@@ -148,6 +158,72 @@ ggplot(data_recruits, aes(x = year, y = recruit, color = taxid)) +
 
 ```
 
+# Benthic community
+
+## Import data
+
+```{r}
+
+# 1. Load and modify the data ----
+
+data_benthic <- read_xlsx("./../data/raw/2. Benthic community structure data  (Year wise) between 2005 and 2018.xlsx", sheet = 14) %>% 
+  select(-Region, -...21) %>% 
+  pivot_longer("ACB":"Abiotic", names_to = "category", values_to = "cover") %>% 
+  filter(cover != 0) %>% 
+  rename(replicate = LIT_Number, site = Site_Number, island = Island, year = Year) %>% 
+  # Re-categorization
+  mutate(subcategory = str_replace_all(category, c("ACB" = "Acroporidae Branching",
+                                                   "ACT" = "Acroporidae Table",
+                                                   "CM" = "Coral Massive",
+                                                   "CB" = "Coral Branching",
+                                                   "CF" = "Coral Foliose",
+                                                   "CE" = "Coral Encrusting",
+                                                   "ACD" = "Acroporidae Digitate",
+                                                   "ACF" = "Acroporidae Foliose",
+                                                   "CS" = "Coral Submassive",
+                                                   "ACE" = "Acroporidae Encrusting")),
+         category = ifelse(category %in% c("ACB", "ACT", "CM", "CB", "CF", "CE", "ACD", "ACF", "CS", "ACE"), "Hard corals", category),
+         subcategory = ifelse(category %in% c("Algae", "CCA", "Others", "Abiotic", "Soft coral"), NA, subcategory))
+
+```
+
+## HCC trends
+
+```{r}
+
+# 1. Modify the data ----
+
+data_hcc <- data_benthic %>% 
+  filter(category == "Hard corals") %>% 
+  group_by(replicate, site, island, year) %>% 
+  summarise(cover = sum(cover))
+
+# 2. Calculate the mean and SD ----
+
+data_hcc_mean <- data_hcc %>% 
+  group_by(island, year) %>% 
+  summarise(cover_mean = mean(cover),
+            cover_sd = sd(cover))
+
+# 2. Make the plot ----
+
+ggplot() +
+  geom_point(data = data_hcc, aes(x = year, y = cover), col = "grey") +
+  geom_pointrange(data = data_hcc_mean, 
+                  aes(x = year, 
+                      y = cover_mean, 
+                      ymin = cover_mean-cover_sd, 
+                      ymax = cover_mean+cover_sd), col = "red") +
+  geom_path(data = data_hcc_mean, aes(x = year, y = cover_mean), col = "red") +
+  facet_wrap(~island, nrow = 3) +
+  labs(x = "Year", y = "Hard coral cover (%)")
+
+# 3. Save the plot ----
+
+ggsave("./../figs/01_benthic-hard-coral-cover-trend.png", height = 10, width = 25) # PNG
+
+```
+
 # SST
 
 ## Import data
@@ -160,7 +236,11 @@ data_sst <- read.csv2("./../data/03-sst-extracted-gom.csv") %>%
   mutate(date = as.Date(date),
          island = str_split_fixed(site, "_", 2)[,1]) %>% 
   group_by(island, date, year, sst) %>% 
-  summarise(sst = mean(sst))
+  summarise(sst = mean(sst)) %>% 
+  ungroup() %>% 
+  mutate(month = month(date),
+         day = day(date),
+         monthday = format(date,"%m-%d"))
 
 ```
 
@@ -172,7 +252,7 @@ data_sst <- read.csv2("./../data/03-sst-extracted-gom.csv") %>%
 
 ggplot(data = data_sst, aes(x = date, y = sst)) +
   geom_path(color = "#6c7a89") +
-  facet_wrap(~island, scales = "free_y", nrow = 3) +
+  facet_wrap(~island, nrow = 3) +
   labs(x = "Year", y = "Sea Surface Temperature (°C)")
 
 # 2. Save the plot ----
@@ -181,21 +261,28 @@ ggsave("./../figs/02_sst-by-site.png", height = 10, width = 25) # PNG
 
 ```
 
-## STT trends by site annotated
+## SST seasonal
 
 ```{r}
 
 # 1. Make the plot ----
 
-ggplot(data = data_sst, aes(x = date, y = sst)) +
-  geom_path(color = "#6c7a89") +
-  facet_wrap(~island, scales = "free_y", nrow = 3) +
-  stat_smooth(method = "lm", col = "red") +
-  labs(x = "Year", y = "Sea Surface Temperature (°C)")
+ggplot(data_sst, aes(x = monthday, y = sst, color = year, group = year)) + 
+  geom_line() +
+  scale_x_discrete(breaks = c("01-01", "02-01", "03-01", "04-01", "05-01",
+                              "06-01", "07-01", "08-01", "09-01", "10-01", "11-01", "12-01"),
+                   labels = c("Jan.", "Feb.", "Mar.", "Apr.", "May", 
+                              "Jun.", "Jul.", "Aug.", "Sep.", "Oct.", "Nov.", "Dec.")) +
+  labs(x = "Month", y = "Sea Surface Temperature (°C)", color = "Year") +
+  scale_color_gradientn(colours = c("#00b16a", "#d91e18"),
+                        breaks = c(1985,2019), labels = c("1985","2019"),
+                        guide = guide_colourbar(barheight = 8, barwidth = 0.5)) +
+  facet_wrap(~island, nrow = 3) +
+  theme(axis.text.x = element_text(size = 6))
 
 # 2. Save the plot ----
 
-ggsave("./../figs/02_sst-annotated-by-site.png", height = 10, width = 25) # PNG
+ggsave("./../figs/02_sst-by-year.png", height = 10, width = 26) # PNG
 
 ```
 
@@ -252,13 +339,16 @@ data_sst_mmm <- data_sst %>%
 
 ggplot(data = data_sst_mmm, aes(x = date, y = dhw)) +
   # Warning (NOAA)*
-  annotate("rect", xmin = as.Date("1985-01-01"), xmax = as.Date("2020-01-01"), ymin = 0, ymax = 4, fill = "#fcd670", alpha = .2) +
+  annotate("rect", xmin = as.Date("1985-01-01"), xmax = as.Date("2020-01-01"), 
+           ymin = 0, ymax = 4, fill = "#fcd670", alpha = .2) +
   # Alert level 1 (NOAA)*
-  annotate("rect", xmin = as.Date("1985-01-01"), xmax = as.Date("2020-01-01"), ymin = 4, ymax = 8, fill = "#eb9532", alpha = .2) +
+  annotate("rect", xmin = as.Date("1985-01-01"), xmax = as.Date("2020-01-01"), 
+           ymin = 4, ymax = 8, fill = "#eb9532", alpha = .2) +
   geom_hline(yintercept = 4, linetype = "dashed") +
   # Alert level 2 (NOAA)*
   geom_hline(yintercept = 8, linetype = "dashed") +
-  annotate("rect", xmin = as.Date("1985-01-01"), xmax = as.Date("2020-01-01"), ymin = 8, ymax = Inf, fill = "#d64541", alpha = .2) +
+  annotate("rect", xmin = as.Date("1985-01-01"), xmax = as.Date("2020-01-01"), 
+           ymin = 8, ymax = Inf, fill = "#d64541", alpha = .2) +
   # DHW
   geom_path(col = "black") +
   facet_wrap(~island, nrow = 3) +
@@ -269,6 +359,90 @@ ggplot(data = data_sst_mmm, aes(x = date, y = dhw)) +
 # 3. Save the plot ----
 
 ggsave("./../figs/02_sst-degree-heating-weeks.png", height = 10, width = 25) # PNG
+
+```
+
+## STT trends by site annotated
+
+```{r}
+
+# 1. Mean SST by site ----
+
+data_sst_mean <- data_sst %>% 
+  group_by(island) %>% 
+  summarise(mean_sst = mean(sst))
+
+# 2. Bleaching threshold ----
+
+data_sst_bt <- data_sst_mmm %>% 
+  select(island, threshold) %>% 
+  distinct()
+
+# 3. Make the plot ----
+
+ggplot() +
+  geom_path(data = data_sst, aes(x = date, y = sst), color = "#6c7a89") +
+  # Linear temporal trend
+  stat_smooth(data = data_sst, aes(x = date, y = sst), method = "lm", col = "#e67e22") +
+  # Mean
+  geom_hline(data = data_sst_mean, aes(yintercept = mean_sst), col = "#3498db") +
+  # Bleaching threshold
+  geom_hline(data = data_sst_bt, aes(yintercept = threshold), linetype = "dashed", col = "red") +
+  facet_wrap(~island, nrow = 3) +
+  labs(x = "Year", y = "Sea Surface Temperature (°C)")
+
+# 4. Save the plot ----
+
+ggsave("./../figs/02_sst-annotated-by-site.png", height = 10, width = 25) # PNG
+
+```
+
+# Assemble plots
+
+```{r}
+
+# 1. Create all the plots ----
+
+# 1.1 data_sst plots --
+
+plot_data_sst <- data_sst %>% 
+  group_by(island) %>% 
+  do(plots = ggplot(data = ., aes(x = date, y = sst)) +
+              geom_path(color = "#6c7a89") +
+              facet_wrap(~island, nrow = 1) +
+              labs(x = NULL, y = "Sea Surface Temperature (°C)"))
+
+# 1.2 data_sst_mmm plots --
+
+plot_data_sst_mmm <- data_sst_mmm %>% 
+  group_by(island) %>% 
+  do(plots = ggplot(data = ., aes(x = date, y = dhw)) +
+               # Warning (NOAA)*
+               annotate("rect", xmin = as.Date("1985-01-01"), xmax = as.Date("2020-01-01"), 
+                        ymin = 0, ymax = 4, fill = "#fcd670", alpha = .2) +
+               # Alert level 1 (NOAA)*
+               annotate("rect", xmin = as.Date("1985-01-01"), xmax = as.Date("2020-01-01"), 
+                        ymin = 4, ymax = 8, fill = "#eb9532", alpha = .2) +
+               geom_hline(yintercept = 4, linetype = "dashed") +
+               # Alert level 2 (NOAA)*
+               geom_hline(yintercept = 8, linetype = "dashed") +
+               annotate("rect", xmin = as.Date("1985-01-01"), xmax = as.Date("2020-01-01"), 
+                        ymin = 8, ymax = Inf, fill = "#d64541", alpha = .2) +
+               # DHW
+               geom_path(col = "black") +
+               facet_wrap(~island, nrow = 3) +
+               labs(x = "Year", y = "Degree Heating Weeks (°C)"))
+
+# 2. Combine and save the plots ----
+
+plot_grid(plotlist = c(plot_data_sst$plots[1:7], plot_data_sst_mmm$plots[1:7]), nrow = 2)
+ggsave("./../figs/04_combined-plots-sst-hcc_1.png", height = 10, width = 25) # PNG
+
+plot_grid(plotlist = c(plot_data_sst$plots[8:14], plot_data_sst_mmm$plots[8:14]), nrow = 2)
+ggsave("./../figs/04_combined-plots-sst-hcc_2.png", height = 10, width = 25) # PNG
+
+plot_grid(plotlist = c(plot_data_sst$plots[15:21], plot_data_sst_mmm$plots[15:21]), nrow = 2)
+ggsave("./../figs/04_combined-plots-sst-hcc_3.png", height = 10, width = 25) # PNG
 
 ```
 
