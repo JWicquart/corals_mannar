@@ -490,6 +490,200 @@ ggsave("./../figs/04_combined-plots-sst-hcc_3.png", height = 14, width = 25) # P
 
 ```
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Old scripts
+
+# Benthic data cleaning
+
+```{r}
+
+# 1. Initizalize the dataframe ----
+
+data_benthos <- read_excel("./../data/01-raw_benthic-data_2005-2018_year-wise.xlsx", sheet = 1) %>% 
+  mutate(Year = excel_sheets(path = "./../data/01-raw_benthic-data_2005-2018_year-wise.xlsx")[1])
+
+# 2. Make a loop to bind all sheets ----
+
+for (i in 2:13) {
+  
+  data_benthos <- data_benthos %>% 
+    bind_rows(., read_excel("./../data/01-raw_benthic-data_2005-2018_year-wise.xlsx", sheet = i) %>% 
+                 mutate(Year = excel_sheets(path = "./../data/01-raw_benthic-data_2005-2018_year-wise.xlsx")[i]))
+
+}
+
+data_benthos <- read_excel("./../data/01-raw_benthic-data_2019.xlsx", sheet = 1, skip = 1, n_max = 252) %>% 
+  mutate(Year = as.character(Year)) %>% 
+  select(-LCC) %>% # LCC = Live Coral Cover = sum of coral categories
+  bind_rows(., data_benthos)
+
+# 3. Clean the data ----
+
+data_benthos <- data_benthos %>% 
+  filter(!(is.na(Island))) %>% 
+  select(-Region, -...21, -...22) %>% 
+  pivot_longer("ACB":"Abiotic", names_to = "Category", values_to = "Cover") %>% 
+  mutate(Year = str_extract(Year, "[[:digit:]]+")) %>% 
+  filter(Cover != 0, !(is.na(Cover))) %>% 
+  rename(Transect = LIT_Number, Site = Site_Number)
+
+# 4. Export the data ----
+
+write.csv2(data_benthos, "./../data/02-clean_benthic-data.csv", row.names = FALSE)
+  
+```
+
+## Benthic data
+
+### Visual exploration
+
+```{r fig.width=25, fig.height=10}
+
+# 1. Evolution of main benthic categories by islands ----
+
+data_benthos %>% 
+  filter(!(Category %in% c("Others", "Soft coral"))) %>% 
+  mutate(Category = as.character(Category),
+         Category = ifelse(Category %in% c("ACB", "ACD", "ACE", "ACF", "ACT", "CB", "CE", "CF", "CM", "CS"), "Coral", Category)) %>% 
+  group_by(Transect, Site, Island, Year, Category) %>% 
+  summarise(Cover = sum(Cover)) %>% 
+  ungroup() %>% 
+  ggplot(data = ., aes(x = Year, y = Cover, color = Category)) +
+    geom_point(alpha = 0.1) +
+    geom_smooth(se = TRUE, show.legend = FALSE) +
+    geom_smooth(se = FALSE) +
+    facet_wrap(~Island, nrow = 3) +
+    lims(x = c(2005, 2020)) +
+    geom_vline(xintercept = 2010, linetype = "dashed", color = "black") +
+    geom_vline(xintercept = 2016, linetype = "dashed", color = "black") +
+    geom_vline(xintercept = 2013, linetype = "dashed", color = "red") +
+    theme_graph() +
+    theme(legend.key = element_rect(colour = "transparent", fill = "white")) +
+    labs(y = "Cover (%)", 
+         title = "Temporal evolution of main benthic categories in the Gulf of Mannar",
+         subtitle = "Black dashed lines are bleaching events, red dahsed line is a likely disturbance")
+
+# 2. Save the plot ----
+
+ggsave("./../figs/01_benthos_evolution-main-benthic-categories-by-islands.pdf", height = 10, width = 25) # PDF
+ggsave("./../figs/01_benthos_evolution-main-benthic-categories-by-islands.png", height = 10, width = 25) # PNG
+
+```
+
+```{r fig.width=25, fig.height=10}
+
+# 1. Temporal evolution of coral shape by islands ----
+
+# "ACB" = "Acropora branching", "ACT" = "Acropora table coral", "ACD" = "Acropora digitate",
+# "ACF" = "Acropora foliose", "ACE" = "Acropora encrusting", "CM" = "Coral massive",
+# "CB" = "Coral branching", "CS" = "Coral sub massive", "CF" = "Coral foliose", "CE" = "Coral encrusting"
+
+data_benthos %>% 
+  filter(!(Category %in% c("Abiotic", "Soft coral", "Others", "Algae", "CCA"))) %>% 
+  mutate(Category = str_replace_all(Category, c("ACB" = "Branching",
+                                                "ACT" = "Tabular",
+                                                "ACD" = "Digitate",
+                                                "ACF" = "Foliose",
+                                                "ACE" = "Encrusting",
+                                                "CM" = "Massive",
+                                                "CB" = "Branching",
+                                                "CS" = "Submassive",
+                                                "CF" = "Foliose",
+                                                "CE" = "Encrusting"))) %>% 
+  group_by(Transect, Site, Island, Year, Category) %>% 
+  summarise(Cover = sum(Cover)) %>% 
+  ungroup() %>% 
+  ggplot(data = ., aes(x = Year, y = Cover, color = Category)) +
+    geom_point(alpha = 0.1) +
+    geom_smooth(se = TRUE, show.legend = FALSE) +
+    geom_smooth(se = FALSE) + 
+    facet_wrap(~Island, nrow = 3) +
+    lims(x = c(2005, 2020), y = c(0, 50)) +
+    geom_vline(xintercept = 2010, linetype = "dashed", color = "black") +
+    geom_vline(xintercept = 2016, linetype = "dashed", color = "black") +
+    geom_vline(xintercept = 2013, linetype = "dashed", color = "red") +
+    theme_graph() +
+    theme(legend.key = element_rect(colour = "transparent", fill = "white")) +
+    labs(y = "Cover (%)", 
+         title = "Temporal evolution of coral shapes in the Gulf of Mannar",
+         subtitle = "Black dashed lines are bleaching events, red dahsed line is a likely disturbance")
+
+# 2. Save the plot ----
+
+ggsave("./../figs/01_benthos_evolution-coral-shape-by-islands.pdf", height = 10, width = 25) # PDF
+ggsave("./../figs/01_benthos_evolution-coral-shape-by-islands.png", height = 10, width = 25) # PNG
+
+```
+
+```{r fig.width=25, fig.height=10}
+
+# 1. Relative contribution of coral shape by islands ----
+
+# "ACB" = "Acropora branching", "ACT" = "Acropora table coral", "ACD" = "Acropora digitate",
+# "ACF" = "Acropora foliose", "ACE" = "Acropora encrusting", "CM" = "Coral massive",
+# "CB" = "Coral branching", "CS" = "Coral sub massive", "CF" = "Coral foliose", "CE" = "Coral encrusting"
+
+data_benthos %>% 
+  filter(!(Category %in% c("Abiotic", "Soft coral", "Others", "Algae", "CCA"))) %>% 
+  mutate(Category = str_replace_all(Category, c("ACB" = "Branching",
+                                                "ACT" = "Tabular",
+                                                "ACD" = "Digitate",
+                                                "ACF" = "Foliose",
+                                                "ACE" = "Encrusting",
+                                                "CM" = "Massive",
+                                                "CB" = "Branching",
+                                                "CS" = "Submassive",
+                                                "CF" = "Foliose",
+                                                "CE" = "Encrusting"))) %>% 
+  group_by(Transect, Site, Island, Year, Category) %>% 
+  summarise(Cover = sum(Cover)) %>% 
+  ungroup() %>% 
+  group_by(Island, Year, Category) %>% 
+  summarise(Absolute = mean(Cover)) %>% 
+  mutate(Relative = (Absolute*100)/sum(Absolute)) %>% 
+  ungroup() %>% 
+  ggplot(data = ., aes(x = Year, y = Relative, fill = Category)) +
+    geom_bar(stat = "identity", width = 1) +
+    facet_wrap(~Island, nrow = 3) +
+    geom_vline(xintercept = 2010, linetype = "dashed", color = "black") +
+    geom_vline(xintercept = 2016, linetype = "dashed", color = "black") +
+    geom_vline(xintercept = 2013, linetype = "dashed", color = "red") +
+    theme_graph() +
+    labs(y = "Relative contribution to total coral cover (%)",
+         title = "Relative contribution of coral shapes to total coral cover in the Gulf of Mannar",
+         subtitle = "Black dashed lines are bleaching events, red dahsed line is a likely disturbance")
+
+# 2. Save the plot ----
+
+ggsave("./../figs/01_benthos_relative-contribution-coral-shape-by-islands.pdf", height = 10, width = 25) # PDF
+ggsave("./../figs/01_benthos_relative-contribution-coral-shape-by-islands.png", height = 10, width = 25) # PNG
+
+```
+
+
+
+
+
+
 # Reproducibility
 
 ```{r reprod}
