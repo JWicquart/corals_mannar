@@ -33,6 +33,8 @@ library(RcppRoll) # For rolling functions
 library(kableExtra) # For html tables
 library(formattable) # For html tables
 library(cowplot) # To assemble plots
+library(vegan) # For NMDS
+library(ggrepel) # To optimize text placement in ggplot
 
 # 2. Import functions ----
 
@@ -378,7 +380,144 @@ ggsave("./../figs/01_hard-coral-shape-absolute-by-island.png", height = 10, widt
 
 ```
 
+## Multivariate analyses
 
+### Benthic composition
+
+#### All islands 
+
+```{r fig.height=4, fig.width=5}
+
+# 1. Transform the data for the NMDS ----
+
+data_nmds <- data_benthic %>% 
+  # Sum by replicate (remove subcategory)
+  group_by(replicate, site, island, year, category) %>% 
+  summarise(cover = sum(cover)) %>% 
+  ungroup() %>% 
+  # Mean by year and category
+  group_by(year, category) %>% 
+  summarise(cover = mean(cover)) %>% 
+  ungroup() %>% 
+  # Sum for each island and year, and standardization to 100
+  group_by(year) %>% 
+  mutate(total = sum(cover)) %>% 
+  ungroup() %>% 
+  mutate(cover = (cover*100)/total) %>% 
+  # Misc.
+  select(-total) %>% 
+  pivot_wider(names_from = category, values_from = cover) %>% 
+  replace(., is.na(.), 0) %>% # Replace all NA by 0
+  column_to_rownames(var = "year") # Put year as rowname for the NMDS
+  
+# 2. Make the NMDS ----
+
+data_nmds <- decostand(data_nmds, "chi.square")
+
+nmds_results <- metaMDS(data_nmds, distance = "bray", k = 2, trymax = 100)
+
+# 3. Plot the results ----
+
+# 3.1 Extract year coordinates --
+
+nmds_results_year <- data.frame(year = rownames(nmds_results$points),
+                                NMDS1 = nmds_results$points[,1],
+                                NMDS2 = nmds_results$points[,2])
+
+# 3.2 Extract category coordinates --
+
+nmds_results_cat <- data.frame(category = rownames(nmds_results$species), 
+                               NMDS1 = nmds_results$species[,1], 
+                               NMDS2 = nmds_results$species[,2])
+
+# 3.3 Make the plot --
+
+ggplot() +
+  # category data
+  geom_text_repel(data = nmds_results_cat, 
+            aes(x = NMDS1, y = NMDS2, label = category, color = category), 
+            family = font_choose_graph, size = 3, show.legend = FALSE) +
+  scale_color_manual(values = palette_category) +
+  # Year data
+  geom_point(data = nmds_results_year, 
+             aes(x = NMDS1, y = NMDS2),
+             color = "black") +
+  geom_path(data = nmds_results_year, 
+             aes(x = NMDS1, y = NMDS2), size = 0.6,
+             color = "black") +
+  geom_text_repel(data = nmds_results_year, 
+                  aes(x = NMDS1, y = NMDS2, label = year), 
+                  size = 3, family = font_choose_graph,
+                  color = "black") +
+  # 2D stress
+  annotate(geom = "text", Inf, -Inf, 
+           label = paste0("2D stress = ", round(nmds_results$stress, 3)), 
+           color = "black",
+           hjust = 1.1, vjust = -2,
+           family = font_choose_graph) +
+  # Bleaching events
+  annotate(geom = "point", 
+           x = ((nmds_results_year["2015","NMDS1"] + nmds_results_year["2016","NMDS1"])/2),
+           y = ((nmds_results_year["2015","NMDS2"] + nmds_results_year["2016","NMDS2"])/2),
+           shape = 4, color = "red") +
+  annotate(geom = "point", 
+           x = ((nmds_results_year["2009","NMDS1"] + nmds_results_year["2010","NMDS1"])/2),
+           y = ((nmds_results_year["2009","NMDS2"] + nmds_results_year["2010","NMDS2"])/2),
+           shape = 4, color = "red") +
+  # Misc.
+  labs(x = "nMDS 1", y = "nMDS 2")
+
+# 4. Save the plot ----
+
+ggsave("./../figs/01_benthic-composition_nmds.png", height = 4, width = 5) # PNG
+
+```
+
+#### By island
+
+```{r}
+
+
+
+
+
+
+
+
+
+
+data_nmds <- data_benthic %>% 
+  # Sum by replicate (remove subcategory)
+  group_by(replicate, site, island, year, category) %>% 
+  summarise(cover = sum(cover)) %>% 
+  ungroup() %>% 
+  # Mean by year and category
+  group_by(island, year, category) %>% 
+  summarise(cover = mean(cover)) %>% 
+  ungroup() %>% 
+  # Sum for each island and year, and standardization to 100
+  group_by(island, year) %>% 
+  mutate(total = sum(cover)) %>% 
+  ungroup() %>% 
+  mutate(cover = (cover*100)/total) %>% 
+  # Misc.
+  select(-total) %>% 
+  pivot_wider(names_from = category, values_from = cover) %>% 
+  replace(., is.na(.), 0) %>% # Replace all NA by 0
+  group_by(island) %>% 
+  column_to_rownames(var = "year") %>% # Put year as rowname for the NMDS
+  do(metaMDS(data_nmds, distance = "bray", k = 2, trymax = 100))
+  
+  
+  
+  
+# 2. Make the NMDS ----
+
+nmds_results <- metaMDS(data_nmds, distance = "bray", k = 2, trymax = 100)
+
+
+
+```
 
 
 

@@ -10,6 +10,8 @@ font_choose_graph <- "Century"
 
 col_fill_graph <- "#59abe3"
 col_color_graph <- "#2C3E50"
+col_nmds_year <- "#03a678"
+col_nmds_species <- "#6c7a89"
 
 palette_category <- c("Hard corals" = "#e47833",
                       "Algae" = "#03a678",
