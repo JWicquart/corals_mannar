@@ -105,84 +105,6 @@ ggsave("./../figs/02_bleaching-prevalence-by-site.png", height = 10, width = 25)
 
 ```
 
-# Recruitment
-
-## Import data
-
-```{r}
-
-# 1. File path ----
-
-file_path <- "./../data/raw/6. recruitment, 2005 -2020.xlsx"
-
-# 2. Import the first sheet ----
-
-data_recruits <- read_xlsx(file_path, sheet = 1, col_types = "text", skip = 1) %>%
-  select(1:16) %>% 
-  rename(taxid = 1) %>% 
-  drop_na(taxid) %>% 
-  pivot_longer(2:ncol(.), names_to = "year", values_to = "recruit") %>% 
-  mutate(site = excel_sheets(path = file_path)[1])
-
-# 3. Loop to bind all the sheets ----
-
-for(i in 2:length(excel_sheets(file_path))){
-  
-  data_recruits <- read_xlsx(file_path, sheet = i, col_types = "text", skip = 1) %>% 
-    select(1:16) %>% 
-    rename(taxid = 1) %>% 
-    drop_na(taxid) %>% 
-    pivot_longer(2:ncol(.), names_to = "year", values_to = "recruit") %>% 
-    mutate(site = excel_sheets(path = file_path)[i]) %>% 
-    bind_rows(data_recruits, .)
-  
-}
-
-# 4. Modifications ----
-
-data_recruits <- data_recruits %>% 
-  mutate(year = str_replace_all(year, c("2003-2005" = "2004",
-                                        "Mar-2007" = "2007",
-                                        "Mar-2008" = "2008",
-                                        "Nov-2009" = "2009",
-                                        "Nov-2010" = "2010",
-                                        "Sep-2011" = "2011",
-                                        "Nov-2012" = "2012")),
-         year = as.numeric(year),
-         recruit = as.numeric(recruit)) %>% 
-  select(site, year, taxid, recruit) %>% 
-  mutate(site = str_extract(site, "[A-z]+"))
-
-```
-
-## Total recruits
-
-```{r}
-
-ggplot(data_recruits, aes(x = year, y = recruit, group = year)) +
-  geom_boxplot() +
-  facet_wrap(~taxid, scales = "free", ncol = 5)
-
-```
-
-## Total recruits by island
-
-```{r}
-
-
-
-
-```
-
-## Total recruits by island and species
-
-```{r}
-
-
-
-
-```
-
 # Benthic community
 
 ## Import data
@@ -263,10 +185,10 @@ data_benthic %>%
   mutate(cover = (cover*100)/total) %>% 
   # Plot 
   ggplot(data = ., aes(x = date, y = cover, fill = category)) +
+    geom_vline(xintercept = as.Date("2015-12-05"), color = "red", size = 1.5) +
+    geom_vline(xintercept = as.Date("2009-12-05"), color = "red", size = 1.5) +
     geom_bar(stat = "identity", color = "black", size = 0.25) +
     scale_fill_manual(values = palette_category) +
-    geom_vline(xintercept = as.Date("2015-12-05"), color = "red", linetype = "dashed") +
-    geom_vline(xintercept = as.Date("2009-12-05"), color = "red", linetype = "dashed") +
     labs(x = "Year", y = "Cover (%)", fill = "Category")
 
 # 2. Save the plot ----
@@ -275,7 +197,7 @@ ggsave("./../figs/01_benthic-composition.png", height = 4, width = 8) # PNG
 
 ```
 
-### By island and category
+### By category and island
 
 ```{r fig.height=10, fig.width=25}
 
@@ -297,16 +219,162 @@ data_benthic %>%
   mutate(cover = (cover*100)/total) %>% 
   # Plot 
   ggplot(data = ., aes(x = date, y = cover, fill = category)) +
+    geom_vline(xintercept = as.Date("2015-12-05"), color = "red", size = 1.5) +
+    geom_vline(xintercept = as.Date("2009-12-05"), color = "red", size = 1.5) +
     geom_bar(stat = "identity", color = "black", size = 0.25) +
     scale_fill_manual(values = palette_category) +
     facet_wrap(~island, ncol = 7) +
-    geom_vline(xintercept = as.Date("2015-12-05"), color = "red", linetype = "dashed") +
-    geom_vline(xintercept = as.Date("2009-12-05"), color = "red", linetype = "dashed") +
     labs(x = "Year", y = "Cover (%)", fill = "Category")
 
 # 2. Save the plot ----
 
 ggsave("./../figs/01_benthic-composition-by-island.png", height = 10, width = 25) # PNG
+
+```
+
+## HCC shape
+
+### By HCC shape
+
+#### Relative
+
+```{r}
+
+# 1. Make the plot ----
+
+data_benthic %>% 
+  # Filter HCC
+  filter(category == "Hard corals") %>% 
+  # Extract the HCC shape
+  mutate(subcategory = str_split_fixed(subcategory, " ", 2)[,2]) %>% 
+  # Sum by replicate
+  group_by(replicate, site, island, date, subcategory) %>% 
+  summarise(cover = sum(cover)) %>% 
+  ungroup() %>% 
+  # Mean by date and subcategory
+  group_by(date, subcategory) %>% 
+  summarise(cover = mean(cover)) %>% 
+  ungroup() %>% 
+  # Sum for each island and date, and standardization to 100
+  group_by(date) %>% 
+  mutate(total = sum(cover)) %>% 
+  ungroup() %>% 
+  mutate(cover = (cover*100)/total) %>% 
+  # Plot 
+  ggplot(data = ., aes(x = date, y = cover, fill = subcategory)) +
+    geom_vline(xintercept = as.Date("2015-12-05"), color = "red", size = 1.5) +
+    geom_vline(xintercept = as.Date("2009-12-05"), color = "red", size = 1.5) +
+    geom_bar(stat = "identity", color = "black", size = 0.25) +
+    labs(x = "Year", y = "Cover (%)", fill = "Shape")
+
+# 2. Save the plot ----
+
+ggsave("./../figs/01_hard-coral-shape-relative.png", height = 4, width = 8) # PNG
+
+```
+
+#### Absolute
+
+```{r}
+
+# 1. Make the plot ----
+
+data_benthic %>% 
+  # Filter HCC
+  filter(category == "Hard corals") %>% 
+  # Extract the HCC shape
+  mutate(subcategory = str_split_fixed(subcategory, " ", 2)[,2]) %>% 
+  # Sum by replicate
+  group_by(replicate, site, island, date, subcategory) %>% 
+  summarise(cover = sum(cover)) %>% 
+  ungroup() %>% 
+  # Mean by date and subcategory
+  group_by(date, subcategory) %>% 
+  summarise(cover = mean(cover)) %>% 
+  ungroup() %>% 
+  # Plot 
+  ggplot(data = ., aes(x = date, y = cover, fill = subcategory)) +
+    geom_vline(xintercept = as.Date("2015-12-05"), color = "red", size = 1.5) +
+    geom_vline(xintercept = as.Date("2009-12-05"), color = "red", size = 1.5) +
+    geom_bar(stat = "identity", color = "black", size = 0.25) +
+    labs(x = "Year", y = "Cover (%)", fill = "Shape")
+
+# 2. Save the plot ----
+
+ggsave("./../figs/01_hard-coral-shape-absolute.png", height = 4, width = 8) # PNG
+
+```
+
+### By HCC shape and island
+
+#### Relative
+
+```{r fig.height=10, fig.width=25}
+
+# 1. Make the plot ----
+
+data_benthic %>% 
+  # Filter HCC
+  filter(category == "Hard corals") %>% 
+  # Extract the HCC shape
+  mutate(subcategory = str_split_fixed(subcategory, " ", 2)[,2]) %>% 
+  # Sum by replicate
+  group_by(replicate, site, island, date, subcategory) %>% 
+  summarise(cover = sum(cover)) %>% 
+  ungroup() %>% 
+  # Mean by island, date and subcategory
+  group_by(island, date, subcategory) %>% 
+  summarise(cover = mean(cover)) %>% 
+  ungroup() %>% 
+  # Sum for each island and date, and standardization to 100
+  group_by(island, date) %>% 
+  mutate(total = sum(cover)) %>% 
+  ungroup() %>% 
+  mutate(cover = (cover*100)/total) %>% 
+  # Plot 
+  ggplot(data = ., aes(x = date, y = cover, fill = subcategory)) +
+    geom_vline(xintercept = as.Date("2015-12-05"), color = "red", size = 1.5) +
+    geom_vline(xintercept = as.Date("2009-12-05"), color = "red", size = 1.5) +
+    geom_bar(stat = "identity", color = "black", size = 0.25) +
+    facet_wrap(~island, ncol = 7) +
+    labs(x = "Year", y = "Cover (%)", fill = "Shape")
+
+# 2. Save the plot ----
+
+ggsave("./../figs/01_hard-coral-shape-relative-by-island.png", height = 10, width = 25) # PNG
+
+```
+
+#### Absolute
+
+```{r fig.height=10, fig.width=25}
+
+# 1. Make the plot ----
+
+data_benthic %>% 
+  # Filter HCC
+  filter(category == "Hard corals") %>% 
+  # Extract the HCC shape
+  mutate(subcategory = str_split_fixed(subcategory, " ", 2)[,2]) %>% 
+  # Sum by replicate
+  group_by(replicate, site, island, date, subcategory) %>% 
+  summarise(cover = sum(cover)) %>% 
+  ungroup() %>% 
+  # Mean by island, date and subcategory
+  group_by(island, date, subcategory) %>% 
+  summarise(cover = mean(cover)) %>% 
+  ungroup() %>% 
+  # Plot 
+  ggplot(data = ., aes(x = date, y = cover, fill = subcategory)) +
+    geom_vline(xintercept = as.Date("2015-12-05"), color = "red", size = 1.5) +
+    geom_vline(xintercept = as.Date("2009-12-05"), color = "red", size = 1.5) +
+    geom_bar(stat = "identity", color = "black", size = 0.25) +
+    facet_wrap(~island, ncol = 7) +
+    labs(x = "Year", y = "Cover (%)", fill = "Shape")
+
+# 2. Save the plot ----
+
+ggsave("./../figs/01_hard-coral-shape-absolute-by-island.png", height = 10, width = 25) # PNG
 
 ```
 
@@ -327,6 +395,104 @@ ggsave("./../figs/01_benthic-composition-by-island.png", height = 10, width = 25
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Recruitment
+
+## Import data
+
+```{r}
+
+# 1. File path ----
+
+file_path <- "./../data/raw/6. recruitment, 2005 -2020.xlsx"
+
+# 2. Import the first sheet ----
+
+data_recruits <- read_xlsx(file_path, sheet = 1, col_types = "text", skip = 1) %>%
+  select(1:16) %>% 
+  rename(taxid = 1) %>% 
+  drop_na(taxid) %>% 
+  pivot_longer(2:ncol(.), names_to = "year", values_to = "recruit") %>% 
+  mutate(site = excel_sheets(path = file_path)[1])
+
+# 3. Loop to bind all the sheets ----
+
+for(i in 2:length(excel_sheets(file_path))){
+  
+  data_recruits <- read_xlsx(file_path, sheet = i, col_types = "text", skip = 1) %>% 
+    select(1:16) %>% 
+    rename(taxid = 1) %>% 
+    drop_na(taxid) %>% 
+    pivot_longer(2:ncol(.), names_to = "year", values_to = "recruit") %>% 
+    mutate(site = excel_sheets(path = file_path)[i]) %>% 
+    bind_rows(data_recruits, .)
+  
+}
+
+# 4. Modifications ----
+
+data_recruits <- data_recruits %>% 
+  mutate(year = str_replace_all(year, c("2003-2005" = "2004",
+                                        "Mar-2007" = "2007",
+                                        "Mar-2008" = "2008",
+                                        "Nov-2009" = "2009",
+                                        "Nov-2010" = "2010",
+                                        "Sep-2011" = "2011",
+                                        "Nov-2012" = "2012")),
+         year = as.numeric(year),
+         recruit = as.numeric(recruit)) %>% 
+  select(site, year, taxid, recruit) %>% 
+  mutate(site = str_extract(site, "[A-z]+"))
+
+```
+
+## Total recruits
+
+```{r}
+
+ggplot(data_recruits, aes(x = year, y = recruit, group = year)) +
+  geom_boxplot() +
+  facet_wrap(~taxid, scales = "free", ncol = 5)
+
+```
+
+## Total recruits by island
+
+```{r}
+
+
+
+
+```
+
+## Total recruits by island and species
+
+```{r}
+
+
+
+
+```
 
 ## HCC trends
 
@@ -628,200 +794,6 @@ plot_grid(plotlist = c(plot_data_sst$plots[15:21],
 ggsave("./../figs/04_combined-plots-sst-hcc_3.png", height = 14, width = 25) # PNG
 
 ```
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# Old scripts
-
-# Benthic data cleaning
-
-```{r}
-
-# 1. Initizalize the dataframe ----
-
-data_benthos <- read_excel("./../data/01-raw_benthic-data_2005-2018_year-wise.xlsx", sheet = 1) %>% 
-  mutate(Year = excel_sheets(path = "./../data/01-raw_benthic-data_2005-2018_year-wise.xlsx")[1])
-
-# 2. Make a loop to bind all sheets ----
-
-for (i in 2:13) {
-  
-  data_benthos <- data_benthos %>% 
-    bind_rows(., read_excel("./../data/01-raw_benthic-data_2005-2018_year-wise.xlsx", sheet = i) %>% 
-                 mutate(Year = excel_sheets(path = "./../data/01-raw_benthic-data_2005-2018_year-wise.xlsx")[i]))
-
-}
-
-data_benthos <- read_excel("./../data/01-raw_benthic-data_2019.xlsx", sheet = 1, skip = 1, n_max = 252) %>% 
-  mutate(Year = as.character(Year)) %>% 
-  select(-LCC) %>% # LCC = Live Coral Cover = sum of coral categories
-  bind_rows(., data_benthos)
-
-# 3. Clean the data ----
-
-data_benthos <- data_benthos %>% 
-  filter(!(is.na(Island))) %>% 
-  select(-Region, -...21, -...22) %>% 
-  pivot_longer("ACB":"Abiotic", names_to = "Category", values_to = "Cover") %>% 
-  mutate(Year = str_extract(Year, "[[:digit:]]+")) %>% 
-  filter(Cover != 0, !(is.na(Cover))) %>% 
-  rename(Transect = LIT_Number, Site = Site_Number)
-
-# 4. Export the data ----
-
-write.csv2(data_benthos, "./../data/02-clean_benthic-data.csv", row.names = FALSE)
-  
-```
-
-## Benthic data
-
-### Visual exploration
-
-```{r fig.width=25, fig.height=10}
-
-# 1. Evolution of main benthic categories by islands ----
-
-data_benthos %>% 
-  filter(!(Category %in% c("Others", "Soft coral"))) %>% 
-  mutate(Category = as.character(Category),
-         Category = ifelse(Category %in% c("ACB", "ACD", "ACE", "ACF", "ACT", "CB", "CE", "CF", "CM", "CS"), "Coral", Category)) %>% 
-  group_by(Transect, Site, Island, Year, Category) %>% 
-  summarise(Cover = sum(Cover)) %>% 
-  ungroup() %>% 
-  ggplot(data = ., aes(x = Year, y = Cover, color = Category)) +
-    geom_point(alpha = 0.1) +
-    geom_smooth(se = TRUE, show.legend = FALSE) +
-    geom_smooth(se = FALSE) +
-    facet_wrap(~Island, nrow = 3) +
-    lims(x = c(2005, 2020)) +
-    geom_vline(xintercept = 2010, linetype = "dashed", color = "black") +
-    geom_vline(xintercept = 2016, linetype = "dashed", color = "black") +
-    geom_vline(xintercept = 2013, linetype = "dashed", color = "red") +
-    theme_graph() +
-    theme(legend.key = element_rect(colour = "transparent", fill = "white")) +
-    labs(y = "Cover (%)", 
-         title = "Temporal evolution of main benthic categories in the Gulf of Mannar",
-         subtitle = "Black dashed lines are bleaching events, red dahsed line is a likely disturbance")
-
-# 2. Save the plot ----
-
-ggsave("./../figs/01_benthos_evolution-main-benthic-categories-by-islands.pdf", height = 10, width = 25) # PDF
-ggsave("./../figs/01_benthos_evolution-main-benthic-categories-by-islands.png", height = 10, width = 25) # PNG
-
-```
-
-```{r fig.width=25, fig.height=10}
-
-# 1. Temporal evolution of coral shape by islands ----
-
-# "ACB" = "Acropora branching", "ACT" = "Acropora table coral", "ACD" = "Acropora digitate",
-# "ACF" = "Acropora foliose", "ACE" = "Acropora encrusting", "CM" = "Coral massive",
-# "CB" = "Coral branching", "CS" = "Coral sub massive", "CF" = "Coral foliose", "CE" = "Coral encrusting"
-
-data_benthos %>% 
-  filter(!(Category %in% c("Abiotic", "Soft coral", "Others", "Algae", "CCA"))) %>% 
-  mutate(Category = str_replace_all(Category, c("ACB" = "Branching",
-                                                "ACT" = "Tabular",
-                                                "ACD" = "Digitate",
-                                                "ACF" = "Foliose",
-                                                "ACE" = "Encrusting",
-                                                "CM" = "Massive",
-                                                "CB" = "Branching",
-                                                "CS" = "Submassive",
-                                                "CF" = "Foliose",
-                                                "CE" = "Encrusting"))) %>% 
-  group_by(Transect, Site, Island, Year, Category) %>% 
-  summarise(Cover = sum(Cover)) %>% 
-  ungroup() %>% 
-  ggplot(data = ., aes(x = Year, y = Cover, color = Category)) +
-    geom_point(alpha = 0.1) +
-    geom_smooth(se = TRUE, show.legend = FALSE) +
-    geom_smooth(se = FALSE) + 
-    facet_wrap(~Island, nrow = 3) +
-    lims(x = c(2005, 2020), y = c(0, 50)) +
-    geom_vline(xintercept = 2010, linetype = "dashed", color = "black") +
-    geom_vline(xintercept = 2016, linetype = "dashed", color = "black") +
-    geom_vline(xintercept = 2013, linetype = "dashed", color = "red") +
-    theme_graph() +
-    theme(legend.key = element_rect(colour = "transparent", fill = "white")) +
-    labs(y = "Cover (%)", 
-         title = "Temporal evolution of coral shapes in the Gulf of Mannar",
-         subtitle = "Black dashed lines are bleaching events, red dahsed line is a likely disturbance")
-
-# 2. Save the plot ----
-
-ggsave("./../figs/01_benthos_evolution-coral-shape-by-islands.pdf", height = 10, width = 25) # PDF
-ggsave("./../figs/01_benthos_evolution-coral-shape-by-islands.png", height = 10, width = 25) # PNG
-
-```
-
-```{r fig.width=25, fig.height=10}
-
-# 1. Relative contribution of coral shape by islands ----
-
-# "ACB" = "Acropora branching", "ACT" = "Acropora table coral", "ACD" = "Acropora digitate",
-# "ACF" = "Acropora foliose", "ACE" = "Acropora encrusting", "CM" = "Coral massive",
-# "CB" = "Coral branching", "CS" = "Coral sub massive", "CF" = "Coral foliose", "CE" = "Coral encrusting"
-
-data_benthos %>% 
-  filter(!(Category %in% c("Abiotic", "Soft coral", "Others", "Algae", "CCA"))) %>% 
-  mutate(Category = str_replace_all(Category, c("ACB" = "Branching",
-                                                "ACT" = "Tabular",
-                                                "ACD" = "Digitate",
-                                                "ACF" = "Foliose",
-                                                "ACE" = "Encrusting",
-                                                "CM" = "Massive",
-                                                "CB" = "Branching",
-                                                "CS" = "Submassive",
-                                                "CF" = "Foliose",
-                                                "CE" = "Encrusting"))) %>% 
-  group_by(Transect, Site, Island, Year, Category) %>% 
-  summarise(Cover = sum(Cover)) %>% 
-  ungroup() %>% 
-  group_by(Island, Year, Category) %>% 
-  summarise(Absolute = mean(Cover)) %>% 
-  mutate(Relative = (Absolute*100)/sum(Absolute)) %>% 
-  ungroup() %>% 
-  ggplot(data = ., aes(x = Year, y = Relative, fill = Category)) +
-    geom_bar(stat = "identity", width = 1) +
-    facet_wrap(~Island, nrow = 3) +
-    geom_vline(xintercept = 2010, linetype = "dashed", color = "black") +
-    geom_vline(xintercept = 2016, linetype = "dashed", color = "black") +
-    geom_vline(xintercept = 2013, linetype = "dashed", color = "red") +
-    theme_graph() +
-    labs(y = "Relative contribution to total coral cover (%)",
-         title = "Relative contribution of coral shapes to total coral cover in the Gulf of Mannar",
-         subtitle = "Black dashed lines are bleaching events, red dahsed line is a likely disturbance")
-
-# 2. Save the plot ----
-
-ggsave("./../figs/01_benthos_relative-contribution-coral-shape-by-islands.pdf", height = 10, width = 25) # PDF
-ggsave("./../figs/01_benthos_relative-contribution-coral-shape-by-islands.png", height = 10, width = 25) # PNG
-
-```
-
-
-
-
-
 
 # Reproducibility
 
