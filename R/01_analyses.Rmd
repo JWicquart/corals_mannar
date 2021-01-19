@@ -30,8 +30,6 @@ library(readxl) # To read excel files
 library(lubridate) # To deal with dates
 library(broom) # To use models with tidyverse
 library(RcppRoll) # For rolling functions
-library(kableExtra) # For html tables
-library(formattable) # For html tables
 library(cowplot) # To assemble plots
 library(vegan) # For NMDS
 library(ggrepel) # To optimize text placement in ggplot
@@ -382,11 +380,9 @@ ggsave("./../figs/01_hard-coral-shape-absolute-by-island.png", height = 10, widt
 
 ## Multivariate analyses
 
-### Benthic composition
+### All islands
 
-#### All islands 
-
-```{r fig.height=4, fig.width=5}
+```{r fig.height=5, fig.width=7}
 
 # 1. Transform the data for the NMDS ----
 
@@ -412,9 +408,9 @@ data_nmds <- data_benthic %>%
   
 # 2. Make the NMDS ----
 
-data_nmds <- decostand(data_nmds, "chi.square")
+data_nmds_transf <- decostand(data_nmds, "chi.square")
 
-nmds_results <- metaMDS(data_nmds, distance = "bray", k = 2, trymax = 100)
+nmds_results <- metaMDS(data_nmds_transf, distance = "bray", k = 2, trymax = 100)
 
 # 3. Plot the results ----
 
@@ -422,7 +418,9 @@ nmds_results <- metaMDS(data_nmds, distance = "bray", k = 2, trymax = 100)
 
 nmds_results_year <- data.frame(year = rownames(nmds_results$points),
                                 NMDS1 = nmds_results$points[,1],
-                                NMDS2 = nmds_results$points[,2])
+                                NMDS2 = nmds_results$points[,2]) %>% 
+  left_join(., data_nmds %>% select("Hard corals") %>% rownames_to_column(var = "year")) %>% 
+  rename(HCC = "Hard corals")
 
 # 3.2 Extract category coordinates --
 
@@ -439,12 +437,13 @@ ggplot() +
             family = font_choose_graph, size = 3, show.legend = FALSE) +
   scale_color_manual(values = palette_category) +
   # Year data
-  geom_point(data = nmds_results_year, 
-             aes(x = NMDS1, y = NMDS2),
-             color = "black") +
   geom_path(data = nmds_results_year, 
              aes(x = NMDS1, y = NMDS2), size = 0.6,
              color = "black") +
+  geom_point(data = nmds_results_year, 
+             aes(x = NMDS1, y = NMDS2, fill = HCC),
+             color = "black", shape = 21, size = 2) +
+  scale_fill_continuous(low = "#4183d7", high = "#f22613") +
   geom_text_repel(data = nmds_results_year, 
                   aes(x = NMDS1, y = NMDS2, label = year), 
                   size = 3, family = font_choose_graph,
@@ -469,29 +468,22 @@ ggplot() +
 
 # 4. Save the plot ----
 
-ggsave("./../figs/01_benthic-composition_nmds.png", height = 4, width = 5) # PNG
+ggsave("./../figs/01_benthic-composition_nmds.png", height = 5, width = 7) # PNG
 
 ```
 
-#### By island
+### By island
 
-```{r}
+```{r fig.height=10, fig.width=25}
 
-
-
-
-
-
-
-
-
+# 1. Preliminary transformation of the data for the NMDS ----
 
 data_nmds <- data_benthic %>% 
   # Sum by replicate (remove subcategory)
   group_by(replicate, site, island, year, category) %>% 
   summarise(cover = sum(cover)) %>% 
   ungroup() %>% 
-  # Mean by year and category
+  # Mean by island, year and category
   group_by(island, year, category) %>% 
   summarise(cover = mean(cover)) %>% 
   ungroup() %>% 
@@ -501,59 +493,89 @@ data_nmds <- data_benthic %>%
   ungroup() %>% 
   mutate(cover = (cover*100)/total) %>% 
   # Misc.
-  select(-total) %>% 
-  pivot_wider(names_from = category, values_from = cover) %>% 
-  replace(., is.na(.), 0) %>% # Replace all NA by 0
-  group_by(island) %>% 
-  column_to_rownames(var = "year") %>% # Put year as rowname for the NMDS
-  do(metaMDS(data_nmds, distance = "bray", k = 2, trymax = 100))
+  select(-total)
   
-  
-  
-  
-# 2. Make the NMDS ----
+# 2. Loop ----
 
-nmds_results <- metaMDS(data_nmds, distance = "bray", k = 2, trymax = 100)
+# 2.1 Initialize the data.frame --
 
+nmds_results_cat <- data_frame(category = character(),
+                               island = character(),
+                               NMDS1 = numeric(),
+                               NMDS2 = numeric())
 
+nmds_results_year <- data_frame(year = character(),
+                                island = character(),
+                                NMDS1 = numeric(),
+                                NMDS2 = numeric())
+
+# 2.2 Make the loop --
+
+for (i in unique(data_nmds$island)) {
+  
+  data_nmds_i <- data_nmds %>% 
+    filter(island == i) %>% 
+    select(-island) %>% 
+    pivot_wider(names_from = category, values_from = cover) %>% 
+    replace(., is.na(.), 0) %>% 
+    column_to_rownames(var = "year") # Put year as rowname for the NMDS
+  
+  data_nmds_transf <- decostand(data_nmds_i, "chi.square")
+
+  nmds_results <- metaMDS(data_nmds_transf, distance = "bray", k = 2, trymax = 100)
+  
+  # 3.1 Extract year coordinates --
+
+nmds_results_year <- data.frame(year = rownames(nmds_results$points),
+                                NMDS1 = nmds_results$points[,1],
+                                NMDS2 = nmds_results$points[,2],
+                                island = i) %>% 
+  bind_rows(nmds_results_year, .)
+  
+  
+
+# 3.2 Extract category coordinates --
+
+nmds_results_cat <- data.frame(category = rownames(nmds_results$species), 
+                               NMDS1 = nmds_results$species[,1], 
+                               NMDS2 = nmds_results$species[,2],
+                               island = i) %>% 
+  bind_rows(nmds_results_cat, .)
+  
+}
+
+# 3. Make the plot ----
+
+ggplot() +
+  # category data
+  geom_text_repel(data = nmds_results_cat, 
+            aes(x = NMDS1, y = NMDS2, label = category, color = category), 
+            family = font_choose_graph, size = 3, show.legend = FALSE) +
+  scale_color_manual(values = palette_category) +
+  # Year data
+  geom_path(data = nmds_results_year, 
+             aes(x = NMDS1, y = NMDS2), size = 0.6,
+             color = "black") +
+  geom_point(data = nmds_results_year, 
+             aes(x = NMDS1, y = NMDS2),
+             color = "black", shape = 21, size = 2) +
+  geom_text_repel(data = nmds_results_year, 
+                  aes(x = NMDS1, y = NMDS2, label = year), 
+                  size = 3, family = font_choose_graph,
+                  color = "black") +
+  # Misc.
+  labs(x = "nMDS 1", y = "nMDS 2") +
+  facet_wrap(~island, ncol = 7, scales = "free")
+
+# 4. Save the plot ----
+
+ggsave("./../figs/01_benthic-composition_nmds-by-island.png", height = 10, width = 25) # PNG
+
+# 5. Remove useless objects ----
+
+rm(data_nmds, data_nmds_i, data_nmds_transf, nmds_results, nmds_results_cat, nmds_results_year)
 
 ```
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 # Recruitment
 
@@ -569,10 +591,10 @@ file_path <- "./../data/raw/6. recruitment, 2005 -2020.xlsx"
 
 data_recruits <- read_xlsx(file_path, sheet = 1, col_types = "text", skip = 1) %>%
   select(1:16) %>% 
-  rename(taxid = 1) %>% 
-  drop_na(taxid) %>% 
+  rename(genus = 1) %>% 
+  drop_na(genus) %>% 
   pivot_longer(2:ncol(.), names_to = "year", values_to = "recruit") %>% 
-  mutate(site = excel_sheets(path = file_path)[1])
+  mutate(island = excel_sheets(path = file_path)[1])
 
 # 3. Loop to bind all the sheets ----
 
@@ -580,10 +602,10 @@ for(i in 2:length(excel_sheets(file_path))){
   
   data_recruits <- read_xlsx(file_path, sheet = i, col_types = "text", skip = 1) %>% 
     select(1:16) %>% 
-    rename(taxid = 1) %>% 
-    drop_na(taxid) %>% 
+    rename(genus = 1) %>% 
+    drop_na(genus) %>% 
     pivot_longer(2:ncol(.), names_to = "year", values_to = "recruit") %>% 
-    mutate(site = excel_sheets(path = file_path)[i]) %>% 
+    mutate(island = excel_sheets(path = file_path)[i]) %>% 
     bind_rows(data_recruits, .)
   
 }
@@ -600,38 +622,228 @@ data_recruits <- data_recruits %>%
                                         "Nov-2012" = "2012")),
          year = as.numeric(year),
          recruit = as.numeric(recruit)) %>% 
-  select(site, year, taxid, recruit) %>% 
-  mutate(site = str_extract(site, "[A-z]+"))
+  select(island, year, genus, recruit) %>% 
+  mutate(island = str_extract(island, "[A-z]+"))
 
 ```
 
-## Total recruits
+## Barplot
 
-```{r}
+### By island and genus
+
+```{r fig.height=12, fig.width=30}
+
+# 1. Make the plot ----
+
+ggplot(data_recruits, aes(x = year, y = recruit)) +
+  geom_point() +
+  geom_path() +
+  facet_grid(genus~island, scales = "free_y") +
+  theme(strip.text.y = element_text(angle = 0)) +
+  geom_vline(xintercept = c(2010, 2016), color = "red")
+
+# 2. Save the plot ----
+
+ggsave("./../figs/01_coral-recruit_by-island-and-genus.png", height = 12, width = 30) # PNG
+
+```
+
+### By island
+
+```{r fig.height=5, fig.width=10}
+
+# 1. Make the plot ----
 
 ggplot(data_recruits, aes(x = year, y = recruit, group = year)) +
+  geom_point(color = "grey", alpha = 0.5) +
   geom_boxplot() +
-  facet_wrap(~taxid, scales = "free", ncol = 5)
+  facet_wrap(~island, ncol = 7) +
+  geom_vline(xintercept = c(2009.5, 2015.5), color = "red") +
+  labs(x = "Year", y = "Recruit")
+
+# 2. Save the plot ----
+
+ggsave("./../figs/01_coral-recruit_by-island.png", height = 5, width = 10) # PNG
 
 ```
 
-## Total recruits by island
+### By genus
+
+```{r fig.height=4, fig.width=10}
+
+# 1. Make the plot ----
+
+ggplot(data_recruits, aes(x = year, y = recruit, group = year)) +
+  geom_point(color = "grey", alpha = 0.5) +
+  geom_boxplot() +
+  facet_wrap(~genus, ncol = 5) +
+  geom_vline(xintercept = c(2009.5, 2015.5), color = "red") +
+  labs(x = "Year", y = "Recruit")
+
+# 2. Save the plot ----
+
+ggsave("./../figs/01_coral-recruit_by-genus.png", height = 4, width = 10) # PNG
+
+```
+
+### Total
 
 ```{r}
 
+# 1. Modify the data ----
 
+data_recruits <- data_recruits %>% 
+  mutate(year_group = case_when(year %in% 2004:2009 ~ "2004 - 2009",
+                                year %in% 2010:2015 ~ "2010 - 2015",
+                                year %in% 2016:2020 ~ "2016 - 2020"))
 
+# 2. Make the plot ----
+
+ggplot(data_recruits, aes(x = year, y = recruit, color = year_group)) +
+  geom_point(color = "grey", alpha = 0.5) +
+  geom_smooth(method = "lm", show.legend = FALSE) +
+  geom_vline(xintercept = c(2009.5, 2015.5), color = "red") +
+  labs(x = "Year", y = "Recruit")
+
+# 3. Save the plot ----
+
+ggsave("./../figs/01_coral-recruit_total.png") # PNG
 
 ```
 
-## Total recruits by island and species
+## NMDS
 
 ```{r}
 
+# 1. Preliminary transformation of the data for the NMDS ----
 
+nmds_results <- data_recruits %>% 
+  # Mean by island, year and category
+  group_by(year, taxid) %>% 
+  summarise(recruit = mean(recruit)) %>% 
+  ungroup() %>% 
+  pivot_wider(names_from = taxid, values_from = recruit) %>% 
+  replace(., is.na(.), 0) %>% # Replace all NA by 0
+  column_to_rownames(var = "year") %>% # Put year as rowname for the NMDS
+  metaMDS(., distance = "bray", k = 2, trymax = 100) # NMDS
 
+# 2. Plot the results ----
+
+# 2.1 Extract year coordinates --
+
+nmds_results_year <- data.frame(year = rownames(nmds_results$points),
+                                NMDS1 = nmds_results$points[,1],
+                                NMDS2 = nmds_results$points[,2])
+
+# 2.2 Extract category coordinates --
+
+nmds_results_recruit <- data.frame(category = rownames(nmds_results$species), 
+                                   NMDS1 = nmds_results$species[,1], 
+                                   NMDS2 = nmds_results$species[,2])
+
+# 2.3 Make the plot --
+
+ggplot() +
+  # category data
+  geom_text_repel(data = nmds_results_recruit, 
+                  aes(x = NMDS1, y = NMDS2, label = category, color = category), 
+                  family = font_choose_graph, size = 3, show.legend = FALSE) +
+  # Year data
+  geom_path(data = nmds_results_year, 
+            aes(x = NMDS1, y = NMDS2), size = 0.6,
+            color = "black") +
+  geom_point(data = nmds_results_year, 
+             aes(x = NMDS1, y = NMDS2),
+             color = "black", fill = "red", shape = 21, size = 2) +
+  geom_text_repel(data = nmds_results_year, 
+                  aes(x = NMDS1, y = NMDS2, label = year), 
+                  size = 3, family = font_choose_graph,
+                  color = "black") +
+  # 2D stress
+  annotate(geom = "text", Inf, -Inf, 
+           label = paste0("2D stress = ", round(nmds_results$stress, 3)), 
+           color = "black",
+           hjust = 1.1, vjust = -2,
+           family = font_choose_graph) +
+  # Misc.
+  labs(x = "nMDS 1", y = "nMDS 2")
+
+# 3. Save the plot ----
+
+ggsave("./../figs/01_coral-recruit_nmds.png", height = 5, width = 7) # PNG
 
 ```
+
+# Recruit and HCC
+
+```{r}
+
+# 1. Join benthic and recruits data ----
+
+data_all <- data_benthic %>% 
+  filter(category == "Hard corals") %>% 
+  group_by(replicate, site, island, date) %>% 
+  summarise(cover = sum(cover)) %>% 
+  ungroup() %>% 
+  group_by(island, date) %>% 
+  summarise(cover = mean(cover)) %>% 
+  ungroup() %>% 
+  mutate(year = year(date)) %>% 
+  select(-date) %>% 
+  left_join(., data_recruits %>% 
+                group_by(island, year) %>% 
+                summarise(recruit = sum(recruit))) %>% 
+  drop_na(recruit)
+
+# 2. Linear regression ----
+
+lm_result <- lm(recruit ~ cover, data = data_all)
+
+# 3. Make the plot ----
+
+ggplot(data = data_all, aes(x = cover, y = recruit)) +
+  geom_point(col = "#4183d7", alpha = 0.75) +
+  geom_smooth(method = lm, color = "#4183d7") +
+  labs(x = "Hard coral cover (%)", y = "Coral recruit (n.m-2)") +
+  annotate(geom = "text", Inf, -Inf, 
+           label = paste0("r² = ", round(summary(lm_result)$r.squared, 3)), 
+           color = "black",
+           hjust = 1.1, vjust = -2,
+           family = font_choose_graph)
+
+# 4. Save the plot ----
+
+ggsave("./../figs/01_relationship-between-hcc-and-coral-recruit.png", height = 5, width = 7) # PNG
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 ## HCC trends
 
