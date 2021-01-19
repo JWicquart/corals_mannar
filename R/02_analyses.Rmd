@@ -43,6 +43,10 @@ source("functions/theme_graph.R")
 
 theme_set(theme_graph())
 
+# 4. Create figs directory if not existing ----
+
+ifelse(!dir.exists("./../figs"), dir.create("./../figs"), FALSE)
+
 ```
 
 # Bleaching prevalence
@@ -814,6 +818,16 @@ ggplot(data = data_all, aes(x = cover, y = recruit)) +
 # 4. Save the plot ----
 
 ggsave("./../figs/01_relationship-between-hcc-and-coral-recruit.png", height = 5, width = 7) # PNG
+
+```
+
+# 
+
+```{r}
+
+test <- read.csv("./../data/02_sst-extracted.csv")
+
+
 
 ```
 
