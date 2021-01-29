@@ -801,16 +801,21 @@ data_all <- data_benthic %>%
 
 # 2. Linear regression ----
 
-lm_result <- lm(recruit ~ cover, data = data_all)
+lm_result <- lm(recruit ~ cover*island, data = data_all)
+
+summary(lm_result)
+
+lm_result$coefficients
 
 # 3. Make the plot ----
 
 ggplot(data = data_all, aes(x = cover, y = recruit)) +
   geom_point(col = "#4183d7", alpha = 0.75) +
-  geom_smooth(method = lm, color = "#4183d7") +
+  geom_abline(intercept = 4.2155, slope = 0.0651) +
+  #geom_smooth(method = lm, color = "#4183d7") +
   labs(x = "Hard coral cover (%)", y = "Coral recruit (n.m-2)") +
   annotate(geom = "text", Inf, -Inf, 
-           label = paste0("r² = ", round(summary(lm_result)$r.squared, 3)), 
+           label = paste0("Adjusted r² = ", round(summary(lm_result)$r.squared, 3)), 
            color = "black",
            hjust = 1.1, vjust = -2,
            family = font_choose_graph)
@@ -947,11 +952,11 @@ ggsave("./../figs/04_combined-plots-sst-dhw-blch-hcc.png", height = 10, width = 
 
 ## Graph all island
 
-```{r fig.height=10, fig.width=4}
+```{r fig.height=9, fig.width=5}
 
 # 1. Load data and misc. modifications ----
 
-data_sst <- read.csv("./../data/02_sst-extracted.csv") %>% 
+data_sst_all <- read.csv("./../data/02_sst-extracted.csv") %>% 
   group_by(date) %>% 
   summarise(sst = mean(sst)) %>% 
   mutate(date = as.Date(date))
@@ -993,7 +998,9 @@ plot_sst <- ggplot(data = data_dhw, aes(x = date, y = sst)) +
   geom_vline(xintercept = as.Date("2020-06-12"), col = "red") +
   # Labs and lims
   labs(x = NULL, y = "SST (°C)") +
-  lims(x = c(as.Date("2005-01-01"), as.Date("2021-01-01")))
+  lims(x = c(as.Date("2005-01-01"), as.Date("2021-01-01"))) +
+  theme(axis.text.x = element_blank(),
+        axis.ticks.x = element_blank())
 
 # 3.2 DHW plot --
 
@@ -1018,7 +1025,9 @@ plot_dhw <- ggplot(data = data_dhw, aes(x = date, y = dhw)) +
   geom_vline(xintercept = as.Date("2020-06-12"), col = "red") +
   # Labs and lims
   labs(x = NULL, y = "DHW (°C)") +
-  lims(x = c(as.Date("2005-01-01"), as.Date("2021-01-01")), y = c(0, 10))
+  lims(x = c(as.Date("2005-01-01"), as.Date("2021-01-01")), y = c(0, 10)) +
+  theme(axis.text.x = element_blank(),
+        axis.ticks.x = element_blank())
 
 # 3.3 Bleaching prevalence --
 
@@ -1039,7 +1048,9 @@ plot_blch <- ggplot(data = data_bleaching_mean) +
   geom_vline(xintercept = as.Date("2020-06-12"), col = "red") +
   # Labs and lims
   labs(x = NULL, y = "Bleaching (%)") +
-  lims(x = c(as.Date("2005-01-01"), as.Date("2021-01-01")))
+  lims(x = c(as.Date("2005-01-01"), as.Date("2021-01-01"))) +
+  theme(axis.text.x = element_blank(),
+        axis.ticks.x = element_blank())
 
 # 3.4 HCC --
 
@@ -1053,11 +1064,9 @@ data_benthic_mean <- data_benthic %>%
             cover_sd = sd(cover)) %>% 
   ungroup()
 
-plot_hcc <- ggplot(data = data_benthic_mean) +
-  geom_pointrange(aes(x = date, y = cover_mean,
-                      ymin = cover_mean-cover_sd, 
-                      ymax = cover_mean+cover_sd)) +
-  geom_path(data = data_benthic_mean, aes(x = date, y = cover_mean)) +
+plot_hcc <- ggplot(data = data_benthic_mean, aes(x = date, y = cover)) +
+  geom_point(color = "grey", alpha = 0.5) +
+  geom_smooth() +
   # DHW events
   geom_vline(xintercept = as.Date("2010-06-12"), col = "red") +
   geom_vline(xintercept = as.Date("2016-06-12"), col = "red") +
@@ -1071,7 +1080,7 @@ plot_hcc <- ggplot(data = data_benthic_mean) +
 
 plot_grid(plot_sst, plot_dhw, plot_blch, plot_hcc, nrow = 4, align = "v")
 
-ggsave("./../figs/04_combined-plots-sst-dhw-blch-hcc.png", height = 10, width = 5) # PNG
+ggsave("./../figs/04_combined-plots-sst-dhw-blch-hcc.png", height = 9, width = 5) # PNG
 
 ```
 
