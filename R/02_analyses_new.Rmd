@@ -395,90 +395,6 @@ rm(plot_sst, plot_dhw, plot_blch, plot_hcc)
 
 ### Sub-figure 1
 
-```{r fig.height=10, fig.width=10}
-
-# 1. Transform the data for the NMDS ----
-
-data_nmds <- data_benthic %>% 
-  # Sum by replicate (remove subcategory)
-  group_by(replicate, site, island, year, category) %>% 
-  summarise(cover = sum(cover)) %>% 
-  ungroup() %>% 
-  # Mean by year and category
-  group_by(island, year, category) %>% 
-  summarise(cover = mean(cover)) %>% 
-  ungroup() %>% 
-  # Sum for each island and year, and standardization to 100
-  group_by(island, year) %>% 
-  mutate(total = sum(cover)) %>% 
-  ungroup() %>% 
-  mutate(cover = (cover*100)/total) %>% 
-  # Misc.
-  mutate(label = paste(island, year, sep = "_")) %>% 
-  select(-total, -island, -year) %>% 
-  pivot_wider(names_from = label, values_from = cover) %>% 
-  replace(., is.na(.), 0) %>% # Replace all NA by 0
-  column_to_rownames(var = "category") # Put year as rowname for the NMDS
-
-
-# 2. Make the NMDS ----
-
-data_nmds_transf <- decostand(data_nmds, "chi.square")
-
-nmds_results <- metaMDS(data_nmds_transf, distance = "bray", k = 2, trymax = 100)
-
-# 3. Extract coordinates ----
-
-# 3.1 Extract year coordinates --
-
-nmds_results_cat <- data.frame(category = rownames(nmds_results$points),
-                                NMDS1 = nmds_results$points[,1],
-                                NMDS2 = nmds_results$points[,2])
-
-# 3.2 Extract category coordinates --
-
-nmds_results_year <- data.frame(label = rownames(nmds_results$species), 
-                               NMDS1 = nmds_results$species[,1], 
-                               NMDS2 = nmds_results$species[,2]) %>% 
-  mutate(island = str_split_fixed(label, "_", 2)[,1],
-         year = str_split_fixed(label, "_", 2)[,2])
-
-
-
-nmds_hull_year <- nmds_results_year %>%
-  group_by(year) %>% 
-  slice(chull(NMDS1, NMDS2))
-
-
-
-# 4. Make the plot ----
-
-ggplot() +
-  # Year data
-  geom_segment(data = nmds_results_cat, aes(x = 0, y = 0, xend = NMDS1, yend = NMDS2), color = "lightgrey") +
-  geom_text_repel(data = nmds_results_cat, 
-                  aes(x = NMDS1, y = NMDS2, label = category), 
-                  size = 3, family = font_choose_graph,
-                  color = "darkgrey") +
-  # category data
-  geom_point(data = nmds_results_year, aes(x = NMDS1, y = NMDS2, color = year)) +
-  geom_polygon(data = nmds_hull_year, aes(x = NMDS1, y = NMDS2, fill = year), alpha = 0.5) +
-  # Misc.
-  labs(x = "nMDS 1", y = "nMDS 2") +
-  theme(panel.grid = element_blank()) +
-  facet_wrap(~year)
-  
-  
-  
-  
-
-```
-
-
-
-
-
-
 ```{r}
 
 # 1. Transform the data for the NMDS ----
@@ -580,6 +496,14 @@ data_nmds <- data_benthic %>%
   group_by(year, subcategory) %>% 
   summarise(cover = mean(cover)) %>% 
   ungroup() %>% 
+  # Sum for each island and year, and standardization to 100
+  group_by(year) %>% 
+  mutate(total = sum(cover)) %>% 
+  ungroup() %>% 
+  mutate(cover = (cover*100)/total) %>% 
+  # Misc.
+  select(-total) %>% 
+  filter(year != 2005, year != 2007) %>% 
   pivot_wider(names_from = subcategory, values_from = cover) %>% 
   replace(., is.na(.), 0) %>% # Replace all NA by 0
   column_to_rownames(var = "year") # Put year as rowname for the NMDS
@@ -800,6 +724,234 @@ ggplot(data_recruits, aes(x = year, y = recruit, fill = genus)) +
 # 2. Save the plot ----
 
 ggsave("./../figs/supp-fig-3_number-recruits-by-genus-and-island.png", height = 10, width = 25) # PNG
+
+```
+
+## Supp. figure 4
+
+```{r fig.height=8, fig.width=12}
+
+# 1. Transform the data for the NMDS ----
+
+data_nmds <- data_benthic %>% 
+  # Sum by replicate (remove subcategory)
+  group_by(replicate, site, island, year, category) %>% 
+  summarise(cover = sum(cover)) %>% 
+  ungroup() %>% 
+  # Mean by year and category
+  group_by(island, year, category) %>% 
+  summarise(cover = mean(cover)) %>% 
+  ungroup() %>% 
+  # Sum for each island and year, and standardization to 100
+  group_by(island, year) %>% 
+  mutate(total = sum(cover)) %>% 
+  ungroup() %>% 
+  mutate(cover = (cover*100)/total) %>% 
+  # Misc.
+  mutate(label = paste(island, year, sep = "_")) %>% 
+  select(-total, -island, -year) %>% 
+  pivot_wider(names_from = label, values_from = cover) %>% 
+  replace(., is.na(.), 0) %>% # Replace all NA by 0
+  column_to_rownames(var = "category") # Put year as rowname for the NMDS
+
+# 2. Make the NMDS ----
+
+data_nmds_transf <- decostand(data_nmds, "chi.square")
+
+nmds_results <- metaMDS(data_nmds_transf, distance = "bray", k = 2, trymax = 100)
+
+# 3. Extract coordinates ----
+
+# 3.1 Extract year coordinates --
+
+nmds_results_cat <- data.frame(category = rownames(nmds_results$points),
+                                NMDS1 = nmds_results$points[,1],
+                                NMDS2 = nmds_results$points[,2])
+
+# 3.2 Extract category coordinates --
+
+nmds_results_year <- data.frame(label = rownames(nmds_results$species), 
+                               NMDS1 = nmds_results$species[,1], 
+                               NMDS2 = nmds_results$species[,2]) %>% 
+  mutate(island = str_split_fixed(label, "_", 2)[,1],
+         year = str_split_fixed(label, "_", 2)[,2])
+
+# 3.3 Create the convex hull --
+
+nmds_hull_year <- nmds_results_year %>%
+  group_by(year) %>% 
+  slice(chull(NMDS1, NMDS2))
+
+# 4. Make the plot ----
+
+ggplot() +
+  # Year data
+  geom_segment(data = nmds_results_cat, aes(x = 0, y = 0, xend = NMDS1, yend = NMDS2), color = "lightgrey") +
+  geom_text_repel(data = nmds_results_cat, 
+                  aes(x = NMDS1, y = NMDS2, label = category), 
+                  size = 3, family = font_choose_graph,
+                  color = "darkgrey") +
+  # category data
+  geom_point(data = nmds_results_year, aes(x = NMDS1, y = NMDS2, fill = year), 
+             shape = 21, color = "black", show.legend = FALSE) +
+  geom_polygon(data = nmds_hull_year, aes(x = NMDS1, y = NMDS2, fill = year), 
+               alpha = 0.3, show.legend = FALSE, color = "grey", linetype = "dashed") +
+  # Misc.
+  labs(x = "NMDS 1", y = "NMDS 2") +
+  theme(panel.grid = element_blank()) +
+  facet_wrap(~year, nrow = 3)
+
+# 5. Save the plot ----
+
+ggsave("./../figs/supp-fig-4_nmds-benthic-composition-by-year-and-island.png", height = 8, width = 12) # PNG
+
+```
+
+## Supp. figure 5
+
+```{r fig.height=8, fig.width=12}
+
+# 1. Transform the data for the NMDS ----
+
+data_nmds <- data_benthic %>% 
+  filter(category == "Hard corals") %>% 
+  # Sum by replicate
+  group_by(replicate, site, island, year, subcategory) %>% 
+  summarise(cover = sum(cover)) %>% 
+  ungroup() %>% 
+  # Mean by year and subcategory
+  group_by(island, year, subcategory) %>% 
+  summarise(cover = mean(cover)) %>% 
+  ungroup() %>% 
+  # Sum for each island and year, and standardization to 100
+  group_by(island, year) %>% 
+  mutate(total = sum(cover)) %>% 
+  ungroup() %>% 
+  mutate(cover = (cover*100)/total) %>% 
+  # Misc.
+  mutate(label = paste(island, year, sep = "_")) %>% 
+  select(-total, -island, -year) %>% 
+  pivot_wider(names_from = label, values_from = cover) %>% 
+  replace(., is.na(.), 0) %>% # Replace all NA by 0
+  column_to_rownames(var = "subcategory") # Put year as rowname for the NMDS
+
+# 2. Make the NMDS ----
+
+data_nmds_transf <- decostand(data_nmds, "chi.square")
+
+nmds_results <- metaMDS(data_nmds_transf, distance = "bray", k = 2, trymax = 100)
+
+# 3. Plot the results ----
+
+# 3.1 Extract year coordinates --
+
+nmds_results_year <- data.frame(label = rownames(nmds_results$species), 
+                               NMDS1 = nmds_results$species[,1], 
+                               NMDS2 = nmds_results$species[,2]) %>% 
+  mutate(island = str_split_fixed(label, "_", 2)[,1],
+         year = str_split_fixed(label, "_", 2)[,2])
+
+# 3.2 Extract category coordinates --
+
+nmds_results_cat <- data.frame(subcategory = rownames(nmds_results$points),
+                                NMDS1 = nmds_results$points[,1],
+                                NMDS2 = nmds_results$points[,2])
+
+# 3.3 Create the convex hull --
+
+nmds_hull_year <- nmds_results_year %>%
+  group_by(year) %>% 
+  slice(chull(NMDS1, NMDS2))
+
+# 4. Make the plot ----
+
+ggplot() +
+  # Category data
+  geom_segment(data = nmds_results_cat, aes(x = 0, y = 0, xend = NMDS1, yend = NMDS2), color = "lightgrey") +
+  geom_text_repel(data = nmds_results_cat, 
+                  aes(x = NMDS1, y = NMDS2, label = subcategory), 
+                  size = 3, family = font_choose_graph,
+                  color = "darkgrey") +
+  # Year data
+  geom_point(data = nmds_results_year, aes(x = NMDS1, y = NMDS2, fill = year), 
+             shape = 21, color = "black", show.legend = FALSE) +
+  geom_polygon(data = nmds_hull_year, aes(x = NMDS1, y = NMDS2, fill = year), 
+               alpha = 0.3, show.legend = FALSE, color = "grey", linetype = "dashed") +
+  # Misc.
+  labs(x = "NMDS 1", y = "NMDS 2") +
+  theme(panel.grid = element_blank()) +
+  facet_wrap(~year, nrow = 3)
+
+# 5. Save the plot ----
+
+ggsave("./../figs/supp-fig-5_nmds-coral-shape-by-year-and-island.png", height = 8, width = 12) # PNG
+
+```
+
+## Supp. figure 6
+
+```{r fig.height=8, fig.width=12}
+
+# 1. Transform the data for the NMDS ----
+
+data_nmds <- data_recruits %>% 
+  filter(!(genus %in% c("Echinopora sp.", "Platygyra sp."))) %>% 
+  mutate(label = paste(island, year, sep = "_")) %>% 
+  select(-island, -year) %>% 
+  pivot_wider(names_from = label, values_from = recruit) %>% 
+  replace(., is.na(.), 0) %>% # Replace all NA by 0
+  column_to_rownames(var = "genus")
+
+# 2. Make the NMDS ----
+
+data_nmds_transf <- decostand(data_nmds, "chi.square")
+
+nmds_results <- metaMDS(data_nmds_transf, distance = "bray", k = 2, trymax = 100)
+
+# 3. Plot the results ----
+
+# 3.1 Extract year coordinates --
+
+nmds_results_year <- data.frame(label = rownames(nmds_results$species), 
+                                NMDS1 = nmds_results$species[,1], 
+                                NMDS2 = nmds_results$species[,2]) %>% 
+  mutate(island = str_split_fixed(label, "_", 2)[,1],
+         year = str_split_fixed(label, "_", 2)[,2])
+
+# 3.2 Extract category coordinates --
+
+nmds_results_cat <- data.frame(genus = rownames(nmds_results$points),
+                               NMDS1 = nmds_results$points[,1],
+                               NMDS2 = nmds_results$points[,2])
+
+# 3.3 Create the convex hull --
+
+nmds_hull_year <- nmds_results_year %>%
+  group_by(year) %>% 
+  slice(chull(NMDS1, NMDS2))
+
+# 4. Make the plot ----
+
+ggplot() +
+  # Category data
+  geom_segment(data = nmds_results_cat, aes(x = 0, y = 0, xend = NMDS1, yend = NMDS2), color = "lightgrey") +
+  geom_text_repel(data = nmds_results_cat, 
+                  aes(x = NMDS1, y = NMDS2, label = genus), 
+                  size = 3, family = font_choose_graph,
+                  color = "darkgrey") +
+  # Year data
+  geom_point(data = nmds_results_year, aes(x = NMDS1, y = NMDS2, fill = year), 
+             shape = 21, color = "black", show.legend = FALSE) +
+  geom_polygon(data = nmds_hull_year, aes(x = NMDS1, y = NMDS2, fill = year), 
+               alpha = 0.3, show.legend = FALSE, color = "grey", linetype = "dashed") +
+  # Misc.
+  labs(x = "NMDS 1", y = "NMDS 2") +
+  theme(panel.grid = element_blank()) +
+  facet_wrap(~year, nrow = 3)
+
+# 5. Save the plot ----
+
+ggsave("./../figs/supp-fig-6_nmds-coral-recruits-by-year-and-island.png", height = 8, width = 12) # PNG
 
 ```
 
