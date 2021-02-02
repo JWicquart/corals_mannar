@@ -852,6 +852,66 @@ rm(plot_sst, plot_dhw, plot_blch, plot_hcc, plot_recruit)
   
 ```
 
+## Supp. figure 6
+
+```{r}
+
+# 1. Join the HCC and recruit data ----
+
+# 1.1 Sum of HCC cover --
+
+data_hcc_sum <- data_benthic %>%
+  filter(category == "Hard corals") %>% 
+  group_by(replicate, site, island, date) %>% 
+  summarise(cover = sum(cover)) %>% 
+  ungroup() %>% 
+  group_by(date, island) %>% 
+  summarise(cover_sum = mean(cover))
+
+# 1.2 Sum of recruit --
+
+data_recruits_sum <- plot_recruit <- data_recruits %>% 
+  # Remove 0 and NA
+  drop_na(recruit) %>% 
+  filter(recruit != 0) %>% 
+  # Sum of recruits between genus
+  group_by(date, island) %>% 
+  summarise(recruit_sum = sum(recruit))
+
+# 1.3 Join --
+
+data_hcc_recruit <- left_join(data_hcc_sum, data_recruits_sum) %>% 
+  drop_na(recruit_sum, cover_sum)
+
+# 2. Make the linear regression ----
+
+lm_res <- lm(recruit_sum ~ cover_sum, data = data_hcc_recruit)
+
+lm_pred <- as.data.frame(predict(lm_res, interval = "confidence"))
+
+data_hcc_recruit <- cbind(data_hcc_recruit, lm_pred)
+
+# 3. Make the plot ----
+
+ggplot(data = data_hcc_recruit, aes(x = cover_sum, y = recruit_sum)) +
+  geom_ribbon(aes(ymin = lwr, ymax = upr), alpha = 0.25) +
+  geom_line(aes(y = fit), size = 1, color = "#00b5cc") +
+  geom_point(color = "black", fill = "#00b5cc", shape = 21) +
+  annotate(geom = "text", x = Inf, y = -Inf, 
+           label = paste("Adjusted R² = ", round(summary(lm_res)$adj.r.squared, 3)), 
+           vjust = -1, hjust = 1.1, family = font_choose_graph) +
+  labs(x = "Hard coral cover (%)", y = bquote("Recruit (n."~m^-2*")"))
+
+# 4. Save the plot ----
+
+ggsave("./../figs/supp-fig-6_linear-reg-hcc-and-recruits.png", height = 5, width = 8) # PNG
+
+# 5. Remove useless objects ----
+
+rm(data_hcc_sum, data_recruits_sum, data_hcc_recruit, lm_res, lm_pred)
+
+```
+
 # Reproducibility
 
 ```{r reprod}
