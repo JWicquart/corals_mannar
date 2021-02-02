@@ -1,0 +1,528 @@
+---
+title: "Analyses"
+author : "Jeremy Wicquart"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    theme: "cosmo"
+    highlight: tango
+    toc: true
+    toc_float:
+      collapsed: false
+      smooth_scroll: false
+    toc_depth: 4
+---
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE)
+
+```
+
+# Load functions and packages
+
+```{r}
+
+# 1. Required packages ----
+
+library(tidyverse) # Core tidyverse packages
+library(readxl) # To read excel files
+library(lubridate) # To deal with dates
+library(broom) # To use models with tidyverse
+library(RcppRoll) # For rolling functions
+library(cowplot) # To assemble plots
+library(vegan) # For NMDS
+library(ggrepel) # To optimize text placement in ggplot
+
+# 2. Import functions ----
+
+source("functions/graphical_par.R")
+source("functions/theme_graph.R")
+
+# 3. Set theme_graph() as the default ggplot theme ----
+
+theme_set(theme_graph())
+
+# 4. Create figs directory if not existing ----
+
+ifelse(!dir.exists("./../figs"), dir.create("./../figs"), FALSE)
+
+```
+
+# Load and modify data
+
+## Bleaching prevalence
+
+```{r}
+
+# 1. Bleaching prevalence ----
+
+# 1.1 File path --
+
+file_path <- "./../data/raw/3. Gulf of Mannar bleaching intensity, 2005-2020.xlsx"
+
+# 1.2 Import the first sheet --
+
+data_bleaching <- read_xlsx(file_path, sheet = 2, col_types = "text") %>% 
+  select(1:4) %>% 
+  drop_na(LIT) %>% 
+  rename(replicate = 1, island = 2, year = 3, bleaching = 4)
+
+# 1.3 Loop to bind all the sheets --
+
+for(i in 3:length(excel_sheets(file_path))){
+  
+  data_bleaching <- read_xlsx(file_path, sheet = i, col_types = "text") %>% 
+    select(1:4) %>% 
+    drop_na(LIT) %>% 
+    rename(replicate = 1, island = 2, year = 3, bleaching = 4) %>% 
+    bind_rows(data_bleaching, .)
+  
+}
+
+# 1.4 Modifications --
+
+data_bleaching <- data_bleaching %>% 
+  mutate(year = as.numeric(as.character(year)),
+         bleaching = as.numeric(as.character(bleaching)),
+         date = as.Date(paste0(year, "-06-01")))
+
+# 1.5 Calculate the mean and SD --
+
+data_bleaching_mean <- data_bleaching %>% 
+  group_by(island, year, date) %>% 
+  summarise(bleaching_mean = mean(bleaching),
+            bleaching_sd = sd(bleaching))
+
+```
+
+## Benthic community
+
+```{r}
+
+# 2. Benthic community ----
+
+# 2.1 Import the different datasets --
+
+# 2.1.1 Data from 2005 to 2018 --
+
+data_benthic_2018 <- read_xlsx("./../data/raw/2. Benthic community structure data  (Year wise) between 2005 and 2018.xlsx", sheet = 14) %>% 
+  select(-Region, -...21)
+
+# 2.1.2 Data for 2019 --
+
+data_benthic_2019 <- read_xlsx("./../data/raw/GoM data - 2019&2020.xlsx", sheet = 1) %>% 
+  select(-Region)
+
+# 2.1.3 Data for 2020 --
+
+data_benthic_2020 <- read_xlsx("./../data/raw/GoM data - 2019&2020.xlsx", sheet = 2, n_max = 252) %>% 
+  select(-Region)
+
+# 2.2 Bind the datasets and misc. modifications --
+
+data_benthic <- bind_rows(data_benthic_2018, data_benthic_2019, data_benthic_2020) %>% 
+  select(-LCC) %>% 
+  pivot_longer("ACB":"Abiotic", names_to = "category", values_to = "cover") %>% 
+  drop_na(cover) %>% 
+  filter(cover != 0) %>% 
+  rename(replicate = LIT_Number, site = Site_Number, island = Island, year = Year) %>% 
+  # Re-categorization
+  mutate(subcategory = str_replace_all(category, c("ACB" = "Acroporidae Branching",
+                                                   "ACT" = "Acroporidae Table",
+                                                   "CM" = "Coral Massive",
+                                                   "CB" = "Coral Branching",
+                                                   "ACD" = "Acroporidae Digitate",
+                                                   "ACF" = "Acroporidae Foliose",
+                                                   "CF" = "Coral Foliose",
+                                                   "CS" = "Coral Submassive",
+                                                   "ACE" = "Acroporidae Encrusting",
+                                                   "CE" = "Coral Encrusting")),
+         category = ifelse(category %in% c("ACB", "ACT", "CM", "CB", "CF", "CE", "ACD", "ACF", "CS", "ACE"), 
+                           "Hard corals", 
+                           category),
+         subcategory = ifelse(category %in% c("Algae", "CCA", "Others", "Abiotic", "Soft coral"), 
+                              NA, 
+                              subcategory),
+         date = as.Date(paste0(year, "-06-01")))
+
+# 2.3 Remove useless objects --
+
+rm(data_benthic_2018, data_benthic_2019, data_benthic_2020)
+
+```
+
+## Coral recruits
+
+```{r}
+
+# 3.1 File path --
+
+file_path <- "./../data/raw/6. recruitment, 2005 -2020.xlsx"
+
+# 3.2 Import the first sheet --
+
+data_recruits <- read_xlsx(file_path, sheet = 1, col_types = "text", skip = 1) %>%
+  select(1:16) %>% 
+  rename(genus = 1) %>% 
+  drop_na(genus) %>% 
+  pivot_longer(2:ncol(.), names_to = "year", values_to = "recruit") %>% 
+  mutate(island = excel_sheets(path = file_path)[1])
+
+# 3.3 Loop to bind all the sheets --
+
+for(i in 2:length(excel_sheets(file_path))){
+  
+  data_recruits <- read_xlsx(file_path, sheet = i, col_types = "text", skip = 1) %>% 
+    select(1:16) %>% 
+    rename(genus = 1) %>% 
+    drop_na(genus) %>% 
+    pivot_longer(2:ncol(.), names_to = "year", values_to = "recruit") %>% 
+    mutate(island = excel_sheets(path = file_path)[i]) %>% 
+    bind_rows(data_recruits, .)
+  
+}
+
+# 3.4 Modifications --
+
+data_recruits <- data_recruits %>% 
+  mutate(year = str_replace_all(year, c("2003-2005" = "2004",
+                                        "Mar-2007" = "2007",
+                                        "Mar-2008" = "2008",
+                                        "Nov-2009" = "2009",
+                                        "Nov-2010" = "2010",
+                                        "Sep-2011" = "2011",
+                                        "Nov-2012" = "2012")),
+         year = as.numeric(year),
+         recruit = as.numeric(recruit)) %>% 
+  select(island, year, genus, recruit) %>% 
+  mutate(island = str_extract(island, "[A-z]+"),
+         date = as.Date(paste0(year, "-06-01")))
+
+```
+
+## SST data and DHW calculation
+
+```{r}
+
+# 4.1 Load data and misc. modifications --
+
+data_sst_raw <- read.csv("./../data/02_sst-extracted.csv")
+
+# 4.1.1 All islands --
+
+data_sst_all <- data_sst_raw %>% 
+  group_by(date) %>% 
+  summarise(sst = mean(sst)) %>% 
+  mutate(date = as.Date(date))
+
+# 4.1.2 By islands --
+
+data_sst_island <- data_sst_raw %>% 
+  # Make the mean by island
+  group_by(island, date) %>% 
+  summarise(sst = mean(sst)) %>% 
+  mutate(date = as.Date(date))
+
+# 4.2 Calculate DHW --
+
+# 4.2.1 All islands --
+
+data_dhw_all <- data_sst_raw %>% 
+  # Calculate mean sst by month for each site
+  mutate(month = month(date)) %>% 
+  group_by(month) %>% 
+  summarise(mean = mean(sst)) %>% 
+  ungroup() %>% 
+  # Extract Maximum Monthly Mean (MMM) for each site
+  filter(mean == max(mean)) %>% 
+  # Calculate the bleaching threshold (MMM + 1°C)
+  mutate(threshold = mean + 1) %>% 
+  ungroup() %>% 
+  # Join with the SST data
+  bind_cols(data_sst_all, .) %>%
+  # Calculate Degree Heating Weeks
+  mutate(delta = ifelse(sst >= threshold, sst - threshold, 0)) %>% 
+  arrange(date) %>% 
+  mutate(dhw = roll_sum(x = delta, n = 84, align = "right", fill = NA)) %>% # 7 days * 12 weeks = 84 days
+  select(-delta, -mean, -month) %>% 
+  # Calculate mean across all year
+  mutate(mean = mean(sst))
+
+# 4.2.2 By islands --
+
+data_dhw_island <- data_sst_raw %>% 
+  # Calculate mean sst by month for each site
+  mutate(month = month(date)) %>% 
+  group_by(island, month) %>% 
+  summarise(mean = mean(sst)) %>% 
+  ungroup() %>% 
+  # Extract Maximum Monthly Mean (MMM) for each site
+  group_by(island) %>% 
+  filter(mean == max(mean)) %>% 
+  # Calculate the bleaching threshold (MMM + 1°C)
+  mutate(threshold = mean + 1) %>% 
+  ungroup() %>% 
+  # Join with the SST data
+  left_join(data_sst_island, .) %>%
+  # Calculate Degree Heating Weeks
+  group_by(island) %>% 
+  mutate(delta = ifelse(sst >= threshold, sst - threshold, 0)) %>% 
+  arrange(date) %>% 
+  mutate(dhw = roll_sum(x = delta, n = 84, align = "right", fill = NA)) %>% # 7 days * 12 weeks = 84 days
+  select(-delta, -mean, -month) %>% 
+  # Calculate mean across all year
+  mutate(mean = mean(sst))
+
+# 4.3 Remove useless objects --
+
+rm(data_sst_raw)
+
+```
+
+# Main figures
+
+## Figure 2
+
+### Sub-figure 1
+
+```{r}
+
+# 1. Transform the data for the NMDS ----
+
+data_nmds <- data_benthic %>% 
+  # Sum by replicate (remove subcategory)
+  group_by(replicate, site, island, year, category) %>% 
+  summarise(cover = sum(cover)) %>% 
+  ungroup() %>% 
+  # Mean by year and category
+  group_by(year, category) %>% 
+  summarise(cover = mean(cover)) %>% 
+  ungroup() %>% 
+  # Sum for each island and year, and standardization to 100
+  group_by(year) %>% 
+  mutate(total = sum(cover)) %>% 
+  ungroup() %>% 
+  mutate(cover = (cover*100)/total) %>% 
+  # Misc.
+  select(-total) %>% 
+  pivot_wider(names_from = category, values_from = cover) %>% 
+  replace(., is.na(.), 0) %>% # Replace all NA by 0
+  column_to_rownames(var = "year") # Put year as rowname for the NMDS
+  
+# 2. Make the NMDS ----
+
+data_nmds_transf <- decostand(data_nmds, "chi.square")
+
+nmds_results <- metaMDS(data_nmds_transf, distance = "bray", k = 2, trymax = 100)
+
+# 3. Extract coordinates ----
+
+# 3.1 Extract year coordinates --
+
+nmds_results_year <- data.frame(year = rownames(nmds_results$points),
+                                NMDS1 = nmds_results$points[,1],
+                                NMDS2 = nmds_results$points[,2])
+
+# 3.2 Extract category coordinates --
+
+nmds_results_cat <- data.frame(category = rownames(nmds_results$species), 
+                               NMDS1 = nmds_results$species[,1], 
+                               NMDS2 = nmds_results$species[,2])
+
+# 4. Make the plot ----
+
+nmds_subfig1 <- ggplot() +
+  # category data
+  geom_segment(data = nmds_results_cat, aes(x = 0, y = 0, xend = NMDS1, yend = NMDS2), color = "lightgrey") +
+  geom_text_repel(data = nmds_results_cat, 
+                  aes(x = NMDS1, y = NMDS2, label = category), 
+                  family = font_choose_graph, size = 3, color = "darkgrey") +
+  # Year data
+  geom_path(data = nmds_results_year, 
+             aes(x = NMDS1, y = NMDS2), size = 0.6,
+             color = "black") +
+  geom_point(data = nmds_results_year, 
+             aes(x = NMDS1, y = NMDS2),
+             fill = "#d64541", color = "black", shape = 21, size = 2) +
+  geom_text_repel(data = nmds_results_year, 
+                  aes(x = NMDS1, y = NMDS2, label = year), 
+                  size = 3, family = font_choose_graph,
+                  color = "black") +
+  # 2D stress
+  annotate(geom = "text", Inf, -Inf, 
+           label = paste0("2D stress = ", round(nmds_results$stress, 3)), 
+           color = "black",
+           hjust = 1.1, vjust = -2,
+           family = font_choose_graph) +
+  # Misc.
+  labs(x = "NMDS 1", y = "NMDS 2", title = "A. Benthic community") +
+  theme(panel.grid = element_blank(),
+        plot.title = element_text(colour = "#d64541"))
+
+```
+
+### Sub-figure 2
+
+```{r}
+
+# 1. Transform the data for the NMDS ----
+
+data_nmds <- data_benthic %>% 
+  filter(category == "Hard corals") %>% 
+  # Sum by replicate
+  group_by(replicate, site, island, year, subcategory) %>% 
+  summarise(cover = sum(cover)) %>% 
+  ungroup() %>% 
+  # Mean by year and subcategory
+  group_by(year, subcategory) %>% 
+  summarise(cover = mean(cover)) %>% 
+  ungroup() %>% 
+  # Sum for each island and year, and standardization to 100
+  group_by(year) %>% 
+  mutate(total = sum(cover)) %>% 
+  ungroup() %>% 
+  mutate(cover = (cover*100)/total) %>% 
+  # Misc.
+  select(-total) %>% 
+  pivot_wider(names_from = subcategory, values_from = cover) %>% 
+  replace(., is.na(.), 0) %>% # Replace all NA by 0
+  column_to_rownames(var = "year") # Put year as rowname for the NMDS
+
+# 2. Make the NMDS ----
+
+data_nmds_transf <- decostand(data_nmds, "chi.square")
+
+nmds_results <- metaMDS(data_nmds_transf, distance = "bray", k = 2, trymax = 100)
+
+# 3. Plot the results ----
+
+# 3.1 Extract year coordinates --
+
+nmds_results_year <- data.frame(year = rownames(nmds_results$points),
+                                NMDS1 = nmds_results$points[,1],
+                                NMDS2 = nmds_results$points[,2])
+
+# 3.2 Extract category coordinates --
+
+nmds_results_cat <- data.frame(subcategory = rownames(nmds_results$species), 
+                               NMDS1 = nmds_results$species[,1], 
+                               NMDS2 = nmds_results$species[,2])
+# 4. Make the plot ----
+
+nmds_subfig2 <- ggplot() +
+  # Category data
+  geom_segment(data = nmds_results_cat, aes(x = 0, y = 0, xend = NMDS1, yend = NMDS2), color = "lightgrey") +
+  geom_text_repel(data = nmds_results_cat, 
+                  aes(x = NMDS1, y = NMDS2, label = subcategory), 
+                  size = 3, family = font_choose_graph,
+                  color = "darkgrey") +
+  # Year data
+  geom_path(data = nmds_results_year, 
+             aes(x = NMDS1, y = NMDS2), size = 0.6,
+             color = "black") +
+  geom_point(data = nmds_results_year, 
+             aes(x = NMDS1, y = NMDS2),
+             fill = "#03a678", color = "black", shape = 21, size = 2) +
+  geom_text_repel(data = nmds_results_year, 
+                  aes(x = NMDS1, y = NMDS2, label = year), 
+                  size = 3, family = font_choose_graph,
+                  color = "black") +
+  # Misc.
+  labs(x = "NMDS 1", y = "NMDS 2", title = "B. Coral shape") +
+  theme(panel.grid = element_blank(),
+        plot.title = element_text(colour = "#03a678"))
+
+```
+
+### Sub-figure 3
+
+```{r}
+
+# 1. Transform the data for the NMDS ----
+
+data_nmds <- data_recruits %>% 
+  filter(!(genus %in% c("Echinopora sp.", "Platygyra sp.", "Goniastrea sp."))) %>% 
+  group_by(year, genus) %>% 
+  summarise(recruit = mean(recruit)) %>% 
+  pivot_wider(names_from = genus, values_from = recruit) %>% 
+  replace(., is.na(.), 0) %>% # Replace all NA by 0
+  column_to_rownames(var = "year")
+
+# 2. Make the NMDS ----
+
+data_nmds_transf <- decostand(data_nmds, "chi.square")
+
+nmds_results <- metaMDS(data_nmds_transf, distance = "bray", k = 2, trymax = 100)
+
+# 3. Plot the results ----
+
+# 3.1 Extract year coordinates --
+
+nmds_results_year <- data.frame(year = rownames(nmds_results$points),
+                               NMDS1 = nmds_results$points[,1],
+                               NMDS2 = nmds_results$points[,2])
+
+# 3.2 Extract category coordinates --
+
+nmds_results_cat <- data.frame(genus = rownames(nmds_results$species), 
+                                NMDS1 = nmds_results$species[,1], 
+                                NMDS2 = nmds_results$species[,2])
+
+# 4. Make the plot ----
+
+nmds_subfig3 <- ggplot() +
+  # Category data
+  geom_segment(data = nmds_results_cat, aes(x = 0, y = 0, xend = NMDS1, yend = NMDS2), color = "lightgrey") +
+  geom_text_repel(data = nmds_results_cat, 
+                  aes(x = NMDS1, y = NMDS2, label = genus), 
+                  size = 3, family = font_choose_graph,
+                  color = "darkgrey") +
+  # Year data
+  geom_path(data = nmds_results_year, 
+             aes(x = NMDS1, y = NMDS2), size = 0.6,
+             color = "black") +
+  geom_point(data = nmds_results_year, 
+             aes(x = NMDS1, y = NMDS2),
+             fill = "#3498db", color = "black", shape = 21, size = 2) +
+  geom_text_repel(data = nmds_results_year, 
+                  aes(x = NMDS1, y = NMDS2, label = year), 
+                  size = 3, family = font_choose_graph,
+                  color = "black") +
+  # Misc.
+  labs(x = "NMDS 1", y = "NMDS 2", title = "C. Coral recruit") +
+  theme(panel.grid = element_blank(),
+        plot.title = element_text(colour = "#3498db"))
+
+```
+
+### Assemble sub-figures
+
+```{r fig.height=5, fig.width=15}
+
+# 1. Combine plots ----
+
+plot_grid(nmds_subfig1, nmds_subfig2, nmds_subfig3, nrow = 1, align = "h")
+
+# 2. Save the plot ----
+
+ggsave("./../figs/04_combined-plots-sst-dhw-blch-hcc.png", height = 9, width = 5) # PNG
+
+# 3. Remove useless objects ----
+
+rm(plot_sst, plot_dhw, plot_blch, plot_hcc)
+
+```
+
+# Reproducibility
+
+```{r reprod}
+
+# 1. Reproducibility ----
+
+sessionInfo()
+
+```
+
+---
+Jeremy WICQUART | jeremywicquart@gmail.com | `r format(Sys.time())`

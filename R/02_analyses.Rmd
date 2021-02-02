@@ -15,11 +15,11 @@ output:
 
 ```{r setup, include=FALSE}
 
-knitr::opts_chunk$set(echo = TRUE, fig.height = 10, fig.width = 25)
+knitr::opts_chunk$set(echo = TRUE)
 
 ```
 
-# Defining functions and packages
+# Load functions and packages
 
 ```{r}
 
@@ -49,22 +49,26 @@ ifelse(!dir.exists("./../figs"), dir.create("./../figs"), FALSE)
 
 ```
 
-# Bleaching prevalence
+# Load and modify data
 
-```{r fig.height=10, fig.width=25}
+## Bleaching prevalence
 
-# 1. File path ----
+```{r}
+
+# 1. Bleaching prevalence ----
+
+# 1.1 File path --
 
 file_path <- "./../data/raw/3. Gulf of Mannar bleaching intensity, 2005-2020.xlsx"
 
-# 2. Import the first sheet ----
+# 1.2 Import the first sheet --
 
 data_bleaching <- read_xlsx(file_path, sheet = 2, col_types = "text") %>% 
   select(1:4) %>% 
   drop_na(LIT) %>% 
   rename(replicate = 1, island = 2, year = 3, bleaching = 4)
 
-# 3. Loop to bind all the sheets ----
+# 1.3 Loop to bind all the sheets --
 
 for(i in 3:length(excel_sheets(file_path))){
   
@@ -76,63 +80,46 @@ for(i in 3:length(excel_sheets(file_path))){
   
 }
 
-# 4. Modifications ----
+# 1.4 Modifications --
 
 data_bleaching <- data_bleaching %>% 
   mutate(year = as.numeric(as.character(year)),
          bleaching = as.numeric(as.character(bleaching)),
          date = as.Date(paste0(year, "-06-01")))
 
-# 5. Calculate the mean and SD ----
+# 1.5 Calculate the mean and SD --
 
 data_bleaching_mean <- data_bleaching %>% 
   group_by(island, year, date) %>% 
   summarise(bleaching_mean = mean(bleaching),
             bleaching_sd = sd(bleaching))
 
-# 6. Make the plot ----
-
-ggplot() +
-  geom_point(data = data_bleaching, aes(x = year, y = bleaching), col = "grey") +
-  geom_pointrange(data = data_bleaching_mean, 
-                  aes(x = year, 
-                      y = bleaching_mean, 
-                      ymin = bleaching_mean-bleaching_sd, 
-                      ymax = bleaching_mean+bleaching_sd), col = "red") +
-  geom_path(data = data_bleaching_mean, aes(x = year, y = bleaching_mean), col = "red") +
-  facet_wrap(~island, nrow = 3) +
-  labs(x = "Year", y = "Bleaching prevalence (%)")
-
-# 7. Save the plot ----
-
-ggsave("./../figs/02_bleaching-prevalence-by-site.png", height = 10, width = 25) # PNG
-
 ```
 
-# Benthic community
-
-## Import data
+## Benthic community
 
 ```{r}
 
-# 1. Import the different datasets ----
+# 2. Benthic community ----
 
-# 1.1 Data from 2005 to 2018 --
+# 2.1 Import the different datasets --
+
+# 2.1.1 Data from 2005 to 2018 --
 
 data_benthic_2018 <- read_xlsx("./../data/raw/2. Benthic community structure data  (Year wise) between 2005 and 2018.xlsx", sheet = 14) %>% 
   select(-Region, -...21)
 
-# 1.2 Data for 2019 --
+# 2.1.2 Data for 2019 --
 
 data_benthic_2019 <- read_xlsx("./../data/raw/GoM data - 2019&2020.xlsx", sheet = 1) %>% 
   select(-Region)
 
-# 1.3 Data for 2020 --
+# 2.1.3 Data for 2020 --
 
 data_benthic_2020 <- read_xlsx("./../data/raw/GoM data - 2019&2020.xlsx", sheet = 2, n_max = 252) %>% 
   select(-Region)
 
-# 2. Bind the datasets and misc. modifications ----
+# 2.2 Bind the datasets and misc. modifications --
 
 data_benthic <- bind_rows(data_benthic_2018, data_benthic_2019, data_benthic_2020) %>% 
   select(-LCC) %>% 
@@ -159,49 +146,443 @@ data_benthic <- bind_rows(data_benthic_2018, data_benthic_2019, data_benthic_202
                               subcategory),
          date = as.Date(paste0(year, "-06-01")))
 
-# 3. Remove useless objects ----
+# 2.3 Remove useless objects --
 
 rm(data_benthic_2018, data_benthic_2019, data_benthic_2020)
 
 ```
 
-## Benthic composition
-
-### By category
+## Coral recruits
 
 ```{r}
 
-# 1. Make the plot ----
+# 3.1 File path --
 
-data_benthic %>% 
-  # Sum by replicate (remove subcategory)
-  group_by(replicate, site, island, date, category) %>% 
-  summarise(cover = sum(cover)) %>% 
-  ungroup() %>% 
-  # Mean by date and category
-  group_by(date, category) %>% 
-  summarise(cover = mean(cover)) %>% 
-  ungroup() %>% 
-  # Sum for each island and date, and standardization to 100
-  group_by(date) %>% 
-  mutate(total = sum(cover)) %>% 
-  ungroup() %>% 
-  mutate(cover = (cover*100)/total) %>% 
-  # Plot 
-  ggplot(data = ., aes(x = date, y = cover, fill = category)) +
-    geom_vline(xintercept = as.Date("2015-12-05"), color = "red", size = 1.5) +
-    geom_vline(xintercept = as.Date("2009-12-05"), color = "red", size = 1.5) +
-    geom_bar(stat = "identity", color = "black", size = 0.25) +
-    scale_fill_manual(values = palette_category) +
-    labs(x = "Year", y = "Cover (%)", fill = "Category")
+file_path <- "./../data/raw/6. recruitment, 2005 -2020.xlsx"
 
-# 2. Save the plot ----
+# 3.2 Import the first sheet --
 
-ggsave("./../figs/01_benthic-composition.png", height = 4, width = 8) # PNG
+data_recruits <- read_xlsx(file_path, sheet = 1, col_types = "text", skip = 1) %>%
+  select(1:16) %>% 
+  rename(genus = 1) %>% 
+  drop_na(genus) %>% 
+  pivot_longer(2:ncol(.), names_to = "year", values_to = "recruit") %>% 
+  mutate(island = excel_sheets(path = file_path)[1])
+
+# 3.3 Loop to bind all the sheets --
+
+for(i in 2:length(excel_sheets(file_path))){
+  
+  data_recruits <- read_xlsx(file_path, sheet = i, col_types = "text", skip = 1) %>% 
+    select(1:16) %>% 
+    rename(genus = 1) %>% 
+    drop_na(genus) %>% 
+    pivot_longer(2:ncol(.), names_to = "year", values_to = "recruit") %>% 
+    mutate(island = excel_sheets(path = file_path)[i]) %>% 
+    bind_rows(data_recruits, .)
+  
+}
+
+# 3.4 Modifications --
+
+data_recruits <- data_recruits %>% 
+  mutate(year = str_replace_all(year, c("2003-2005" = "2004",
+                                        "Mar-2007" = "2007",
+                                        "Mar-2008" = "2008",
+                                        "Nov-2009" = "2009",
+                                        "Nov-2010" = "2010",
+                                        "Sep-2011" = "2011",
+                                        "Nov-2012" = "2012")),
+         year = as.numeric(year),
+         recruit = as.numeric(recruit)) %>% 
+  select(island, year, genus, recruit) %>% 
+  mutate(island = str_extract(island, "[A-z]+"),
+         date = as.Date(paste0(year, "-06-01")))
 
 ```
 
-### By category and island
+## SST data and DHW calculation
+
+```{r}
+
+# 4.1 Load data and misc. modifications --
+
+data_sst_raw <- read.csv("./../data/02_sst-extracted.csv")
+
+# 4.1.1 All islands --
+
+data_sst_all <- data_sst_raw %>% 
+  group_by(date) %>% 
+  summarise(sst = mean(sst)) %>% 
+  mutate(date = as.Date(date))
+
+# 4.1.2 By islands --
+
+data_sst_island <- data_sst_raw %>% 
+  # Make the mean by island
+  group_by(island, date) %>% 
+  summarise(sst = mean(sst)) %>% 
+  mutate(date = as.Date(date))
+
+# 4.2 Calculate DHW --
+
+# 4.2.1 All islands --
+
+data_dhw_all <- data_sst_raw %>% 
+  # Calculate mean sst by month for each site
+  mutate(month = month(date)) %>% 
+  group_by(month) %>% 
+  summarise(mean = mean(sst)) %>% 
+  ungroup() %>% 
+  # Extract Maximum Monthly Mean (MMM) for each site
+  filter(mean == max(mean)) %>% 
+  # Calculate the bleaching threshold (MMM + 1°C)
+  mutate(threshold = mean + 1) %>% 
+  ungroup() %>% 
+  # Join with the SST data
+  bind_cols(data_sst_all, .) %>%
+  # Calculate Degree Heating Weeks
+  mutate(delta = ifelse(sst >= threshold, sst - threshold, 0)) %>% 
+  arrange(date) %>% 
+  mutate(dhw = roll_sum(x = delta, n = 84, align = "right", fill = NA)) %>% # 7 days * 12 weeks = 84 days
+  select(-delta, -mean, -month) %>% 
+  # Calculate mean across all year
+  mutate(mean = mean(sst))
+
+# 4.2.2 By islands --
+
+data_dhw_island <- data_sst_raw %>% 
+  # Calculate mean sst by month for each site
+  mutate(month = month(date)) %>% 
+  group_by(island, month) %>% 
+  summarise(mean = mean(sst)) %>% 
+  ungroup() %>% 
+  # Extract Maximum Monthly Mean (MMM) for each site
+  group_by(island) %>% 
+  filter(mean == max(mean)) %>% 
+  # Calculate the bleaching threshold (MMM + 1°C)
+  mutate(threshold = mean + 1) %>% 
+  ungroup() %>% 
+  # Join with the SST data
+  left_join(data_sst_island, .) %>%
+  # Calculate Degree Heating Weeks
+  group_by(island) %>% 
+  mutate(delta = ifelse(sst >= threshold, sst - threshold, 0)) %>% 
+  arrange(date) %>% 
+  mutate(dhw = roll_sum(x = delta, n = 84, align = "right", fill = NA)) %>% # 7 days * 12 weeks = 84 days
+  select(-delta, -mean, -month) %>% 
+  # Calculate mean across all year
+  mutate(mean = mean(sst))
+
+# 4.3 Remove useless objects --
+
+rm(data_sst_raw)
+
+```
+
+# Main figures
+
+## Figure 1
+
+```{r fig.height=12, fig.width=5}
+
+# 1. Make the plots ----
+
+# 1.1 SST plot --
+
+plot_sst <- ggplot(data = data_dhw_all, aes(x = date, y = sst)) +
+   # DHW events
+  geom_vline(xintercept = c(as.Date("2010-06-12"), as.Date("2016-06-12"), 
+                            as.Date("2019-06-12"), as.Date("2020-06-12")), col = "#f22613") +
+  geom_path(color = "#6c7a89") +
+  geom_hline(yintercept = max(data_dhw_all$threshold), linetype = "dashed") +
+  # Labs and lims
+  labs(x = NULL, y = "SST (°C)") +
+  lims(x = c(as.Date("2005-01-01"), as.Date("2021-01-01"))) +
+  theme(axis.text.x = element_blank(),
+        axis.ticks.x = element_blank())
+
+# 1.2 DHW plot --
+
+plot_dhw <- ggplot(data = data_dhw_all, aes(x = date, y = dhw)) +
+  # DHW events
+  geom_vline(xintercept = c(as.Date("2010-06-12"), as.Date("2016-06-12"), 
+                            as.Date("2019-06-12"), as.Date("2020-06-12")), col = "#f22613") +
+  # Warning (NOAA)*
+  annotate("rect", xmin = as.Date("2005-01-01"), xmax = as.Date("2021-01-01"), 
+           ymin = 0, ymax = 4, fill = "#fcd670", alpha = .2) +
+  # Alert level 1 (NOAA)*
+  annotate("rect", xmin = as.Date("2005-01-01"), xmax = as.Date("2021-01-01"), 
+           ymin = 4, ymax = 8, fill = "#eb9532", alpha = .2) +
+  geom_hline(yintercept = 4, linetype = "dashed") +
+  # Alert level 2 (NOAA)*
+  geom_hline(yintercept = 8, linetype = "dashed") +
+  annotate("rect", xmin = as.Date("2005-01-01"), xmax = as.Date("2021-01-01"), 
+           ymin = 8, ymax = Inf, fill = "#d64541", alpha = .2) +
+  # DHW
+  geom_path(col = "black") +
+  # Labs and lims
+  labs(x = NULL, y = "DHW (°C)") +
+  lims(x = c(as.Date("2005-01-01"), as.Date("2021-01-01")), y = c(0, 10)) +
+  theme(axis.text.x = element_blank(),
+        axis.ticks.x = element_blank())
+
+# 1.3 Bleaching prevalence --
+
+plot_blch <- data_bleaching %>% 
+  group_by(date) %>% 
+  summarise(bleaching_mean = mean(bleaching),
+            bleaching_sd = sd(bleaching)) %>% 
+  ungroup() %>% 
+  mutate(upper_bound = bleaching_mean+bleaching_sd,
+         lower_bound = bleaching_mean-bleaching_sd) %>% 
+  ggplot() +
+  geom_ribbon(aes(x = date, ymin = lower_bound, ymax = upper_bound), 
+              fill = "#e4e9ed", color = "grey", alpha = 0.75) +
+  # DHW events
+  geom_vline(xintercept = c(as.Date("2010-06-12"), as.Date("2016-06-12"), 
+                            as.Date("2019-06-12"), as.Date("2020-06-12")), col = "#f22613") +
+  geom_path(aes(x = date, y = bleaching_mean)) +
+  geom_point(aes(x = date, y = bleaching_mean), shape = 21, color = "black", fill = "#e4e9ed", size = 2) +
+  # Labs and lims
+  labs(x = NULL, y = "Bleaching (%)") +
+  lims(x = c(as.Date("2005-01-01"), as.Date("2021-01-01")), y = c(0, 40)) +
+  theme(axis.text.x = element_blank(),
+        axis.ticks.x = element_blank())
+
+# 1.4 HCC --
+
+plot_hcc <- data_benthic %>%
+  filter(category == "Hard corals") %>% 
+  group_by(replicate, site, island, date) %>% 
+  summarise(cover = sum(cover)) %>% 
+  ungroup() %>% 
+  group_by(date) %>% 
+  summarise(cover_mean = mean(cover),
+            cover_sd = sd(cover)) %>% 
+  ungroup() %>% 
+  mutate(upper_bound = cover_mean+cover_sd,
+         lower_bound = cover_mean-cover_sd) %>% 
+  ggplot() +
+  geom_ribbon(aes(x = date, ymin = lower_bound, ymax = upper_bound), 
+              fill = "#d64541", color = "#d64541", alpha = 0.1) +
+  # DHW events
+  geom_vline(xintercept = c(as.Date("2010-06-12"), as.Date("2016-06-12"), 
+                            as.Date("2019-06-12"), as.Date("2020-06-12")), col = "#f22613") +
+  geom_path(aes(x = date, y = cover_mean)) +
+  geom_point(aes(x = date, y = cover_mean), shape = 21, color = "black", fill = "#d64541", size = 2) +
+  # Labs and lims
+  labs(x = NULL, y = "HCC (%)") +
+  lims(x = c(as.Date("2005-01-01"), as.Date("2021-01-01")), y = c(0, 60)) +
+  theme(axis.text.x = element_blank(),
+        axis.ticks.x = element_blank())
+
+# 1.5 Recruits --
+
+plot_recruit <- data_recruits %>% 
+  # Remove 0 and NA
+  drop_na(recruit) %>% 
+  filter(recruit != 0) %>% 
+  # Sum of recruits between genus
+  group_by(date, island) %>% 
+  summarise(recruit = sum(recruit)) %>% 
+  ungroup() %>% 
+  # Mean across islands
+  group_by(date) %>% 
+  summarise(recruit_mean = mean(recruit),
+            recruit_sd = sd(recruit)) %>% 
+  ungroup() %>% 
+  mutate(upper_bound = recruit_mean+recruit_sd,
+         lower_bound = recruit_mean-recruit_sd) %>% 
+  ggplot() +
+  geom_ribbon(aes(x = date, ymin = lower_bound, ymax = upper_bound), 
+              fill = "#eb974e", color = "#eb974e", alpha = 0.1) +
+  # DHW events
+  geom_vline(xintercept = c(as.Date("2010-06-12"), as.Date("2016-06-12"), 
+                            as.Date("2019-06-12"), as.Date("2020-06-12")), col = "#f22613") +
+  geom_path(aes(x = date, y = recruit_mean)) +
+  geom_point(aes(x = date, y = recruit_mean), shape = 21, color = "black", fill = "#eb974e", size = 2) +
+  labs(x = NULL, y = bquote("Recruit (n."~m^-2*")")) +
+  lims(x = c(as.Date("2005-01-01"), as.Date("2021-01-01")), y = c(0, 10))
+
+# 2. Combine plots ----
+
+plot_grid(plot_sst, plot_dhw, plot_blch, plot_hcc, plot_recruit, nrow = 5, align = "v", labels = c("A", "B", "C", "D", "E"))
+
+# 3. Save the plot ----
+
+ggsave("./../figs/fig-1_combined-plots-sst-dhw-blch-hcc-recruit.png", height = 12, width = 5) # PNG
+
+# 4. Remove useless objects ----
+
+rm(plot_sst, plot_dhw, plot_blch, plot_hcc, plot_recruit)
+
+```
+
+## Figure 2
+
+```{r fig.height=8, fig.width=12}
+
+# 1. Transform the data for the NMDS ----
+
+data_nmds <- data_benthic %>% 
+  # Sum by replicate (remove subcategory)
+  group_by(replicate, site, island, year, category) %>% 
+  summarise(cover = sum(cover)) %>% 
+  ungroup() %>% 
+  # Mean by year and category
+  group_by(island, year, category) %>% 
+  summarise(cover = mean(cover)) %>% 
+  ungroup() %>% 
+  # Sum for each island and year, and standardization to 100
+  group_by(island, year) %>% 
+  mutate(total = sum(cover)) %>% 
+  ungroup() %>% 
+  mutate(cover = (cover*100)/total) %>% 
+  # Misc.
+  mutate(label = paste(island, year, sep = "_")) %>% 
+  select(-total, -island, -year) %>% 
+  pivot_wider(names_from = label, values_from = cover) %>% 
+  replace(., is.na(.), 0) %>% # Replace all NA by 0
+  column_to_rownames(var = "category") # Put year as rowname for the NMDS
+
+# 2. Make the NMDS ----
+
+data_nmds_transf <- decostand(data_nmds, "chi.square")
+
+nmds_results <- metaMDS(data_nmds_transf, distance = "bray", k = 2, trymax = 100)
+
+# 3. Extract coordinates ----
+
+# 3.1 Extract year coordinates --
+
+nmds_results_cat <- data.frame(category = rownames(nmds_results$points),
+                                NMDS1 = nmds_results$points[,1],
+                                NMDS2 = nmds_results$points[,2])
+
+# 3.2 Extract category coordinates --
+
+nmds_results_year <- data.frame(label = rownames(nmds_results$species), 
+                               NMDS1 = nmds_results$species[,1], 
+                               NMDS2 = nmds_results$species[,2]) %>% 
+  mutate(island = str_split_fixed(label, "_", 2)[,1],
+         year = str_split_fixed(label, "_", 2)[,2])
+
+# 3.3 Create the convex hull --
+
+nmds_hull_year <- nmds_results_year %>%
+  group_by(year) %>% 
+  slice(chull(NMDS1, NMDS2))
+
+# 4. Make the plot ----
+
+ggplot() +
+  # Year data
+  geom_segment(data = nmds_results_cat, aes(x = 0, y = 0, xend = NMDS1, yend = NMDS2), color = "lightgrey") +
+  geom_text_repel(data = nmds_results_cat, 
+                  aes(x = NMDS1, y = NMDS2, label = category), 
+                  size = 3, family = font_choose_graph,
+                  color = "darkgrey") +
+  # category data
+  geom_point(data = nmds_results_year, aes(x = NMDS1, y = NMDS2, fill = year), 
+             shape = 21, color = "black", show.legend = FALSE) +
+  geom_polygon(data = nmds_hull_year, aes(x = NMDS1, y = NMDS2, fill = year), 
+               alpha = 0.3, show.legend = FALSE, color = "grey", linetype = "dashed") +
+  # Misc.
+  labs(x = "NMDS 1", y = "NMDS 2") +
+  theme(panel.grid = element_blank()) +
+  facet_wrap(~year, nrow = 3)
+
+# 5. Save the plot ----
+
+ggsave("./../figs/fig-2_nmds-benthic-composition-by-year-and-island.png", height = 8, width = 12) # PNG
+
+```
+
+## Figure 3
+
+```{r fig.height=8, fig.width=12}
+
+# 1. Transform the data for the NMDS ----
+
+data_nmds <- data_benthic %>% 
+  filter(category == "Hard corals") %>% 
+  # Sum by replicate
+  group_by(replicate, site, island, year, subcategory) %>% 
+  summarise(cover = sum(cover)) %>% 
+  ungroup() %>% 
+  # Mean by year and subcategory
+  group_by(island, year, subcategory) %>% 
+  summarise(cover = mean(cover)) %>% 
+  ungroup() %>% 
+  # Sum for each island and year, and standardization to 100
+  group_by(island, year) %>% 
+  mutate(total = sum(cover)) %>% 
+  ungroup() %>% 
+  mutate(cover = (cover*100)/total) %>% 
+  # Misc.
+  mutate(label = paste(island, year, sep = "_")) %>% 
+  select(-total, -island, -year) %>% 
+  pivot_wider(names_from = label, values_from = cover) %>% 
+  replace(., is.na(.), 0) %>% # Replace all NA by 0
+  column_to_rownames(var = "subcategory") # Put year as rowname for the NMDS
+
+# 2. Make the NMDS ----
+
+data_nmds_transf <- decostand(data_nmds, "chi.square")
+
+nmds_results <- metaMDS(data_nmds_transf, distance = "bray", k = 2, trymax = 100)
+
+# 3. Plot the results ----
+
+# 3.1 Extract year coordinates --
+
+nmds_results_year <- data.frame(label = rownames(nmds_results$species), 
+                               NMDS1 = nmds_results$species[,1], 
+                               NMDS2 = nmds_results$species[,2]) %>% 
+  mutate(island = str_split_fixed(label, "_", 2)[,1],
+         year = str_split_fixed(label, "_", 2)[,2])
+
+# 3.2 Extract category coordinates --
+
+nmds_results_cat <- data.frame(subcategory = rownames(nmds_results$points),
+                                NMDS1 = nmds_results$points[,1],
+                                NMDS2 = nmds_results$points[,2])
+
+# 3.3 Create the convex hull --
+
+nmds_hull_year <- nmds_results_year %>%
+  group_by(year) %>% 
+  slice(chull(NMDS1, NMDS2))
+
+# 4. Make the plot ----
+
+ggplot() +
+  # Category data
+  geom_segment(data = nmds_results_cat, aes(x = 0, y = 0, xend = NMDS1, yend = NMDS2), color = "lightgrey") +
+  geom_text_repel(data = nmds_results_cat, 
+                  aes(x = NMDS1, y = NMDS2, label = subcategory), 
+                  size = 3, family = font_choose_graph,
+                  color = "darkgrey") +
+  # Year data
+  geom_point(data = nmds_results_year, aes(x = NMDS1, y = NMDS2, fill = year), 
+             shape = 21, color = "black", show.legend = FALSE) +
+  geom_polygon(data = nmds_hull_year, aes(x = NMDS1, y = NMDS2, fill = year), 
+               alpha = 0.3, show.legend = FALSE, color = "grey", linetype = "dashed") +
+  # Misc.
+  labs(x = "NMDS 1", y = "NMDS 2") +
+  theme(panel.grid = element_blank()) +
+  facet_wrap(~year, nrow = 3)
+
+# 5. Save the plot ----
+
+ggsave("./../figs/fig-3_nmds-coral-shape-by-year-and-island.png", height = 8, width = 12) # PNG
+
+```
+
+# Supplementary figures
+
+## Supp. figure 1
 
 ```{r fig.height=10, fig.width=25}
 
@@ -223,95 +604,19 @@ data_benthic %>%
   mutate(cover = (cover*100)/total) %>% 
   # Plot 
   ggplot(data = ., aes(x = date, y = cover, fill = category)) +
-    geom_vline(xintercept = as.Date("2015-12-05"), color = "red", size = 1.5) +
-    geom_vline(xintercept = as.Date("2009-12-05"), color = "red", size = 1.5) +
+    geom_vline(xintercept = c(as.Date("2015-12-05"), as.Date("2009-12-05")), color = "red", size = 1.5) +
     geom_bar(stat = "identity", color = "black", size = 0.25) +
     scale_fill_manual(values = palette_category) +
     facet_wrap(~island, ncol = 7) +
-    labs(x = "Year", y = "Cover (%)", fill = "Category")
+    labs(x = "Year", y = "Benthic cover (%)", fill = "Category")
 
 # 2. Save the plot ----
 
-ggsave("./../figs/01_benthic-composition-by-island.png", height = 10, width = 25) # PNG
+ggsave("./../figs/supp-fig-1_benthic-composition-by-island.png", height = 10, width = 25) # PNG
 
 ```
 
-## HCC shape
-
-### By HCC shape
-
-#### Relative
-
-```{r}
-
-# 1. Make the plot ----
-
-data_benthic %>% 
-  # Filter HCC
-  filter(category == "Hard corals") %>% 
-  # Extract the HCC shape
-  mutate(subcategory = str_split_fixed(subcategory, " ", 2)[,2]) %>% 
-  # Sum by replicate
-  group_by(replicate, site, island, date, subcategory) %>% 
-  summarise(cover = sum(cover)) %>% 
-  ungroup() %>% 
-  # Mean by date and subcategory
-  group_by(date, subcategory) %>% 
-  summarise(cover = mean(cover)) %>% 
-  ungroup() %>% 
-  # Sum for each island and date, and standardization to 100
-  group_by(date) %>% 
-  mutate(total = sum(cover)) %>% 
-  ungroup() %>% 
-  mutate(cover = (cover*100)/total) %>% 
-  # Plot 
-  ggplot(data = ., aes(x = date, y = cover, fill = subcategory)) +
-    geom_vline(xintercept = as.Date("2015-12-05"), color = "red", size = 1.5) +
-    geom_vline(xintercept = as.Date("2009-12-05"), color = "red", size = 1.5) +
-    geom_bar(stat = "identity", color = "black", size = 0.25) +
-    labs(x = "Year", y = "Cover (%)", fill = "Shape")
-
-# 2. Save the plot ----
-
-ggsave("./../figs/01_hard-coral-shape-relative.png", height = 4, width = 8) # PNG
-
-```
-
-#### Absolute
-
-```{r}
-
-# 1. Make the plot ----
-
-data_benthic %>% 
-  # Filter HCC
-  filter(category == "Hard corals") %>% 
-  # Extract the HCC shape
-  mutate(subcategory = str_split_fixed(subcategory, " ", 2)[,2]) %>% 
-  # Sum by replicate
-  group_by(replicate, site, island, date, subcategory) %>% 
-  summarise(cover = sum(cover)) %>% 
-  ungroup() %>% 
-  # Mean by date and subcategory
-  group_by(date, subcategory) %>% 
-  summarise(cover = mean(cover)) %>% 
-  ungroup() %>% 
-  # Plot 
-  ggplot(data = ., aes(x = date, y = cover, fill = subcategory)) +
-    geom_vline(xintercept = as.Date("2015-12-05"), color = "red", size = 1.5) +
-    geom_vline(xintercept = as.Date("2009-12-05"), color = "red", size = 1.5) +
-    geom_bar(stat = "identity", color = "black", size = 0.25) +
-    labs(x = "Year", y = "Cover (%)", fill = "Shape")
-
-# 2. Save the plot ----
-
-ggsave("./../figs/01_hard-coral-shape-absolute.png", height = 4, width = 8) # PNG
-
-```
-
-### By HCC shape and island
-
-#### Relative
+## Supp. figure 2
 
 ```{r fig.height=10, fig.width=25}
 
@@ -320,46 +625,6 @@ ggsave("./../figs/01_hard-coral-shape-absolute.png", height = 4, width = 8) # PN
 data_benthic %>% 
   # Filter HCC
   filter(category == "Hard corals") %>% 
-  # Extract the HCC shape
-  mutate(subcategory = str_split_fixed(subcategory, " ", 2)[,2]) %>% 
-  # Sum by replicate
-  group_by(replicate, site, island, date, subcategory) %>% 
-  summarise(cover = sum(cover)) %>% 
-  ungroup() %>% 
-  # Mean by island, date and subcategory
-  group_by(island, date, subcategory) %>% 
-  summarise(cover = mean(cover)) %>% 
-  ungroup() %>% 
-  # Sum for each island and date, and standardization to 100
-  group_by(island, date) %>% 
-  mutate(total = sum(cover)) %>% 
-  ungroup() %>% 
-  mutate(cover = (cover*100)/total) %>% 
-  # Plot 
-  ggplot(data = ., aes(x = date, y = cover, fill = subcategory)) +
-    geom_vline(xintercept = as.Date("2015-12-05"), color = "red", size = 1.5) +
-    geom_vline(xintercept = as.Date("2009-12-05"), color = "red", size = 1.5) +
-    geom_bar(stat = "identity", color = "black", size = 0.25) +
-    facet_wrap(~island, ncol = 7) +
-    labs(x = "Year", y = "Cover (%)", fill = "Shape")
-
-# 2. Save the plot ----
-
-ggsave("./../figs/01_hard-coral-shape-relative-by-island.png", height = 10, width = 25) # PNG
-
-```
-
-#### Absolute
-
-```{r fig.height=10, fig.width=25}
-
-# 1. Make the plot ----
-
-data_benthic %>% 
-  # Filter HCC
-  filter(category == "Hard corals") %>% 
-  # Extract the HCC shape
-  mutate(subcategory = str_split_fixed(subcategory, " ", 2)[,2]) %>% 
   # Sum by replicate
   group_by(replicate, site, island, date, subcategory) %>% 
   summarise(cover = sum(cover)) %>% 
@@ -370,46 +635,50 @@ data_benthic %>%
   ungroup() %>% 
   # Plot 
   ggplot(data = ., aes(x = date, y = cover, fill = subcategory)) +
-    geom_vline(xintercept = as.Date("2015-12-05"), color = "red", size = 1.5) +
-    geom_vline(xintercept = as.Date("2009-12-05"), color = "red", size = 1.5) +
+    geom_vline(xintercept = c(as.Date("2015-12-05"), as.Date("2009-12-05")), color = "red", size = 1.5) +
     geom_bar(stat = "identity", color = "black", size = 0.25) +
     facet_wrap(~island, ncol = 7) +
-    labs(x = "Year", y = "Cover (%)", fill = "Shape")
+    labs(x = "Year", y = "Benthic cover (%)", fill = "Coral shape")
 
 # 2. Save the plot ----
 
-ggsave("./../figs/01_hard-coral-shape-absolute-by-island.png", height = 10, width = 25) # PNG
+ggsave("./../figs/supp-fig-2_hard-coral-shape-by-island.png", height = 10, width = 25) # PNG
 
 ```
 
-## Multivariate analyses
+## Supp. figure 3
 
-### All islands
+```{r fig.height=10, fig.width=25}
 
-```{r fig.height=5, fig.width=7}
+# 1. Make the plot ----
+
+ggplot(data_recruits, aes(x = date, y = recruit, fill = genus)) +
+  geom_vline(xintercept = c(as.Date("2015-12-05"), as.Date("2009-12-05")), color = "red", size = 1.5) +
+  geom_bar(stat = "identity", color = "black", size = 0.25) +
+  facet_wrap(~island, ncol = 7) +
+  labs(x = "Year", y = "Recruits (n.m2)", fill = "Genus")
+
+# 2. Save the plot ----
+
+ggsave("./../figs/supp-fig-3_number-recruits-by-genus-and-island.png", height = 10, width = 25) # PNG
+
+```
+
+## Supp. figure 4
+
+```{r fig.height=8, fig.width=12}
 
 # 1. Transform the data for the NMDS ----
 
-data_nmds <- data_benthic %>% 
-  # Sum by replicate (remove subcategory)
-  group_by(replicate, site, island, year, category) %>% 
-  summarise(cover = sum(cover)) %>% 
-  ungroup() %>% 
-  # Mean by year and category
-  group_by(year, category) %>% 
-  summarise(cover = mean(cover)) %>% 
-  ungroup() %>% 
-  # Sum for each island and year, and standardization to 100
-  group_by(year) %>% 
-  mutate(total = sum(cover)) %>% 
-  ungroup() %>% 
-  mutate(cover = (cover*100)/total) %>% 
-  # Misc.
-  select(-total) %>% 
-  pivot_wider(names_from = category, values_from = cover) %>% 
+data_nmds <- data_recruits %>% 
+  select(-date) %>% 
+  filter(!(genus %in% c("Echinopora sp.", "Platygyra sp."))) %>% 
+  mutate(label = paste(island, year, sep = "_")) %>% 
+  select(-island, -year) %>% 
+  pivot_wider(names_from = label, values_from = recruit) %>% 
   replace(., is.na(.), 0) %>% # Replace all NA by 0
-  column_to_rownames(var = "year") # Put year as rowname for the NMDS
-  
+  column_to_rownames(var = "genus")
+
 # 2. Make the NMDS ----
 
 data_nmds_transf <- decostand(data_nmds, "chi.square")
@@ -420,668 +689,167 @@ nmds_results <- metaMDS(data_nmds_transf, distance = "bray", k = 2, trymax = 100
 
 # 3.1 Extract year coordinates --
 
-nmds_results_year <- data.frame(year = rownames(nmds_results$points),
-                                NMDS1 = nmds_results$points[,1],
-                                NMDS2 = nmds_results$points[,2]) %>% 
-  left_join(., data_nmds %>% select("Hard corals") %>% rownames_to_column(var = "year")) %>% 
-  rename(HCC = "Hard corals")
+nmds_results_year <- data.frame(label = rownames(nmds_results$species), 
+                                NMDS1 = nmds_results$species[,1], 
+                                NMDS2 = nmds_results$species[,2]) %>% 
+  mutate(island = str_split_fixed(label, "_", 2)[,1],
+         year = str_split_fixed(label, "_", 2)[,2])
 
 # 3.2 Extract category coordinates --
 
-nmds_results_cat <- data.frame(category = rownames(nmds_results$species), 
-                               NMDS1 = nmds_results$species[,1], 
-                               NMDS2 = nmds_results$species[,2])
+nmds_results_cat <- data.frame(genus = rownames(nmds_results$points),
+                               NMDS1 = nmds_results$points[,1],
+                               NMDS2 = nmds_results$points[,2])
 
-# 3.3 Make the plot --
+# 3.3 Create the convex hull --
+
+nmds_hull_year <- nmds_results_year %>%
+  group_by(year) %>% 
+  slice(chull(NMDS1, NMDS2))
+
+# 4. Make the plot ----
 
 ggplot() +
-  # category data
+  # Category data
+  geom_segment(data = nmds_results_cat, aes(x = 0, y = 0, xend = NMDS1, yend = NMDS2), color = "lightgrey") +
   geom_text_repel(data = nmds_results_cat, 
-            aes(x = NMDS1, y = NMDS2, label = category, color = category), 
-            family = font_choose_graph, size = 3, show.legend = FALSE) +
-  scale_color_manual(values = palette_category) +
-  # Year data
-  geom_path(data = nmds_results_year, 
-             aes(x = NMDS1, y = NMDS2), size = 0.6,
-             color = "black") +
-  geom_point(data = nmds_results_year, 
-             aes(x = NMDS1, y = NMDS2, fill = HCC),
-             color = "black", shape = 21, size = 2) +
-  scale_fill_continuous(low = "#4183d7", high = "#f22613") +
-  geom_text_repel(data = nmds_results_year, 
-                  aes(x = NMDS1, y = NMDS2, label = year), 
+                  aes(x = NMDS1, y = NMDS2, label = genus), 
                   size = 3, family = font_choose_graph,
-                  color = "black") +
-  # 2D stress
-  annotate(geom = "text", Inf, -Inf, 
-           label = paste0("2D stress = ", round(nmds_results$stress, 3)), 
-           color = "black",
-           hjust = 1.1, vjust = -2,
-           family = font_choose_graph) +
-  # Bleaching events
-  annotate(geom = "point", 
-           x = ((nmds_results_year["2015","NMDS1"] + nmds_results_year["2016","NMDS1"])/2),
-           y = ((nmds_results_year["2015","NMDS2"] + nmds_results_year["2016","NMDS2"])/2),
-           shape = 4, color = "red") +
-  annotate(geom = "point", 
-           x = ((nmds_results_year["2009","NMDS1"] + nmds_results_year["2010","NMDS1"])/2),
-           y = ((nmds_results_year["2009","NMDS2"] + nmds_results_year["2010","NMDS2"])/2),
-           shape = 4, color = "red") +
-  # Misc.
-  labs(x = "nMDS 1", y = "nMDS 2")
-
-# 4. Save the plot ----
-
-ggsave("./../figs/01_benthic-composition_nmds.png", height = 5, width = 7) # PNG
-
-```
-
-### By island
-
-```{r fig.height=10, fig.width=25}
-
-# 1. Preliminary transformation of the data for the NMDS ----
-
-data_nmds <- data_benthic %>% 
-  # Sum by replicate (remove subcategory)
-  group_by(replicate, site, island, year, category) %>% 
-  summarise(cover = sum(cover)) %>% 
-  ungroup() %>% 
-  # Mean by island, year and category
-  group_by(island, year, category) %>% 
-  summarise(cover = mean(cover)) %>% 
-  ungroup() %>% 
-  # Sum for each island and year, and standardization to 100
-  group_by(island, year) %>% 
-  mutate(total = sum(cover)) %>% 
-  ungroup() %>% 
-  mutate(cover = (cover*100)/total) %>% 
-  # Misc.
-  select(-total)
-  
-# 2. Loop ----
-
-# 2.1 Initialize the data.frame --
-
-nmds_results_cat <- data_frame(category = character(),
-                               island = character(),
-                               NMDS1 = numeric(),
-                               NMDS2 = numeric())
-
-nmds_results_year <- data_frame(year = character(),
-                                island = character(),
-                                NMDS1 = numeric(),
-                                NMDS2 = numeric())
-
-# 2.2 Make the loop --
-
-for (i in unique(data_nmds$island)) {
-  
-  data_nmds_i <- data_nmds %>% 
-    filter(island == i) %>% 
-    select(-island) %>% 
-    pivot_wider(names_from = category, values_from = cover) %>% 
-    replace(., is.na(.), 0) %>% 
-    column_to_rownames(var = "year") # Put year as rowname for the NMDS
-  
-  data_nmds_transf <- decostand(data_nmds_i, "chi.square")
-
-  nmds_results <- metaMDS(data_nmds_transf, distance = "bray", k = 2, trymax = 100)
-  
-  # 3.1 Extract year coordinates --
-
-nmds_results_year <- data.frame(year = rownames(nmds_results$points),
-                                NMDS1 = nmds_results$points[,1],
-                                NMDS2 = nmds_results$points[,2],
-                                island = i) %>% 
-  bind_rows(nmds_results_year, .)
-  
-  
-
-# 3.2 Extract category coordinates --
-
-nmds_results_cat <- data.frame(category = rownames(nmds_results$species), 
-                               NMDS1 = nmds_results$species[,1], 
-                               NMDS2 = nmds_results$species[,2],
-                               island = i) %>% 
-  bind_rows(nmds_results_cat, .)
-  
-}
-
-# 3. Make the plot ----
-
-ggplot() +
-  # category data
-  geom_text_repel(data = nmds_results_cat, 
-            aes(x = NMDS1, y = NMDS2, label = category, color = category), 
-            family = font_choose_graph, size = 3, show.legend = FALSE) +
-  scale_color_manual(values = palette_category) +
+                  color = "darkgrey") +
   # Year data
-  geom_path(data = nmds_results_year, 
-             aes(x = NMDS1, y = NMDS2), size = 0.6,
-             color = "black") +
-  geom_point(data = nmds_results_year, 
-             aes(x = NMDS1, y = NMDS2),
-             color = "black", shape = 21, size = 2) +
-  geom_text_repel(data = nmds_results_year, 
-                  aes(x = NMDS1, y = NMDS2, label = year), 
-                  size = 3, family = font_choose_graph,
-                  color = "black") +
+  geom_point(data = nmds_results_year, aes(x = NMDS1, y = NMDS2, fill = year), 
+             shape = 21, color = "black", show.legend = FALSE) +
+  geom_polygon(data = nmds_hull_year, aes(x = NMDS1, y = NMDS2, fill = year), 
+               alpha = 0.3, show.legend = FALSE, color = "grey", linetype = "dashed") +
   # Misc.
-  labs(x = "nMDS 1", y = "nMDS 2") +
-  facet_wrap(~island, ncol = 7, scales = "free")
+  labs(x = "NMDS 1", y = "NMDS 2") +
+  theme(panel.grid = element_blank()) +
+  facet_wrap(~year, nrow = 3)
 
-# 4. Save the plot ----
+# 5. Save the plot ----
 
-ggsave("./../figs/01_benthic-composition_nmds-by-island.png", height = 10, width = 25) # PNG
-
-# 5. Remove useless objects ----
-
-rm(data_nmds, data_nmds_i, data_nmds_transf, nmds_results, nmds_results_cat, nmds_results_year)
+ggsave("./../figs/supp-fig-4_nmds-coral-recruits-by-year-and-island.png", height = 8, width = 12) # PNG
 
 ```
 
-# Recruitment
+## Supp. figure 5
 
-## Import data
+```{r fig.width=45, fig.height=8}
 
-```{r}
+# 1. Make the plots ----
 
-# 1. File path ----
+# 1.1 SST plot --
 
-file_path <- "./../data/raw/6. recruitment, 2005 -2020.xlsx"
-
-# 2. Import the first sheet ----
-
-data_recruits <- read_xlsx(file_path, sheet = 1, col_types = "text", skip = 1) %>%
-  select(1:16) %>% 
-  rename(genus = 1) %>% 
-  drop_na(genus) %>% 
-  pivot_longer(2:ncol(.), names_to = "year", values_to = "recruit") %>% 
-  mutate(island = excel_sheets(path = file_path)[1])
-
-# 3. Loop to bind all the sheets ----
-
-for(i in 2:length(excel_sheets(file_path))){
-  
-  data_recruits <- read_xlsx(file_path, sheet = i, col_types = "text", skip = 1) %>% 
-    select(1:16) %>% 
-    rename(genus = 1) %>% 
-    drop_na(genus) %>% 
-    pivot_longer(2:ncol(.), names_to = "year", values_to = "recruit") %>% 
-    mutate(island = excel_sheets(path = file_path)[i]) %>% 
-    bind_rows(data_recruits, .)
-  
-}
-
-# 4. Modifications ----
-
-data_recruits <- data_recruits %>% 
-  mutate(year = str_replace_all(year, c("2003-2005" = "2004",
-                                        "Mar-2007" = "2007",
-                                        "Mar-2008" = "2008",
-                                        "Nov-2009" = "2009",
-                                        "Nov-2010" = "2010",
-                                        "Sep-2011" = "2011",
-                                        "Nov-2012" = "2012")),
-         year = as.numeric(year),
-         recruit = as.numeric(recruit)) %>% 
-  select(island, year, genus, recruit) %>% 
-  mutate(island = str_extract(island, "[A-z]+"))
-
-```
-
-## Barplot
-
-### By island and genus
-
-```{r fig.height=12, fig.width=30}
-
-# 1. Make the plot ----
-
-ggplot(data_recruits, aes(x = year, y = recruit)) +
-  geom_point() +
-  geom_path() +
-  facet_grid(genus~island, scales = "free_y") +
-  theme(strip.text.y = element_text(angle = 0)) +
-  geom_vline(xintercept = c(2010, 2016), color = "red")
-
-# 2. Save the plot ----
-
-ggsave("./../figs/01_coral-recruit_by-island-and-genus.png", height = 12, width = 30) # PNG
-
-```
-
-### By island
-
-```{r fig.height=5, fig.width=10}
-
-# 1. Make the plot ----
-
-ggplot(data_recruits, aes(x = year, y = recruit, group = year)) +
-  geom_point(color = "grey", alpha = 0.5) +
-  geom_boxplot() +
-  facet_wrap(~island, ncol = 7) +
-  geom_vline(xintercept = c(2009.5, 2015.5), color = "red") +
-  labs(x = "Year", y = "Recruit")
-
-# 2. Save the plot ----
-
-ggsave("./../figs/01_coral-recruit_by-island.png", height = 5, width = 10) # PNG
-
-```
-
-### By genus
-
-```{r fig.height=4, fig.width=10}
-
-# 1. Make the plot ----
-
-ggplot(data_recruits, aes(x = year, y = recruit, group = year)) +
-  geom_point(color = "grey", alpha = 0.5) +
-  geom_boxplot() +
-  facet_wrap(~genus, ncol = 5) +
-  geom_vline(xintercept = c(2009.5, 2015.5), color = "red") +
-  labs(x = "Year", y = "Recruit")
-
-# 2. Save the plot ----
-
-ggsave("./../figs/01_coral-recruit_by-genus.png", height = 4, width = 10) # PNG
-
-```
-
-### Total
-
-```{r}
-
-# 1. Modify the data ----
-
-data_recruits <- data_recruits %>% 
-  mutate(year_group = case_when(year %in% 2004:2009 ~ "2004 - 2009",
-                                year %in% 2010:2015 ~ "2010 - 2015",
-                                year %in% 2016:2020 ~ "2016 - 2020"))
-
-# 2. Make the plot ----
-
-ggplot(data_recruits, aes(x = year, y = recruit, color = year_group)) +
-  geom_point(color = "grey", alpha = 0.5) +
-  geom_smooth(method = "lm", show.legend = FALSE) +
-  geom_vline(xintercept = c(2009.5, 2015.5), color = "red") +
-  labs(x = "Year", y = "Recruit")
-
-# 3. Save the plot ----
-
-ggsave("./../figs/01_coral-recruit_total.png") # PNG
-
-```
-
-## NMDS
-
-```{r}
-
-# 1. Preliminary transformation of the data for the NMDS ----
-
-nmds_results <- data_recruits %>% 
-  # Mean by island, year and category
-  group_by(year, taxid) %>% 
-  summarise(recruit = mean(recruit)) %>% 
-  ungroup() %>% 
-  pivot_wider(names_from = taxid, values_from = recruit) %>% 
-  replace(., is.na(.), 0) %>% # Replace all NA by 0
-  column_to_rownames(var = "year") %>% # Put year as rowname for the NMDS
-  metaMDS(., distance = "bray", k = 2, trymax = 100) # NMDS
-
-# 2. Plot the results ----
-
-# 2.1 Extract year coordinates --
-
-nmds_results_year <- data.frame(year = rownames(nmds_results$points),
-                                NMDS1 = nmds_results$points[,1],
-                                NMDS2 = nmds_results$points[,2])
-
-# 2.2 Extract category coordinates --
-
-nmds_results_recruit <- data.frame(category = rownames(nmds_results$species), 
-                                   NMDS1 = nmds_results$species[,1], 
-                                   NMDS2 = nmds_results$species[,2])
-
-# 2.3 Make the plot --
-
-ggplot() +
-  # category data
-  geom_text_repel(data = nmds_results_recruit, 
-                  aes(x = NMDS1, y = NMDS2, label = category, color = category), 
-                  family = font_choose_graph, size = 3, show.legend = FALSE) +
-  # Year data
-  geom_path(data = nmds_results_year, 
-            aes(x = NMDS1, y = NMDS2), size = 0.6,
-            color = "black") +
-  geom_point(data = nmds_results_year, 
-             aes(x = NMDS1, y = NMDS2),
-             color = "black", fill = "red", shape = 21, size = 2) +
-  geom_text_repel(data = nmds_results_year, 
-                  aes(x = NMDS1, y = NMDS2, label = year), 
-                  size = 3, family = font_choose_graph,
-                  color = "black") +
-  # 2D stress
-  annotate(geom = "text", Inf, -Inf, 
-           label = paste0("2D stress = ", round(nmds_results$stress, 3)), 
-           color = "black",
-           hjust = 1.1, vjust = -2,
-           family = font_choose_graph) +
-  # Misc.
-  labs(x = "nMDS 1", y = "nMDS 2")
-
-# 3. Save the plot ----
-
-ggsave("./../figs/01_coral-recruit_nmds.png", height = 5, width = 7) # PNG
-
-```
-
-# Recruit and HCC
-
-```{r}
-
-# 1. Join benthic and recruits data ----
-
-data_all <- data_benthic %>% 
-  filter(category == "Hard corals") %>% 
-  group_by(replicate, site, island, date) %>% 
-  summarise(cover = sum(cover)) %>% 
-  ungroup() %>% 
-  group_by(island, date) %>% 
-  summarise(cover = mean(cover)) %>% 
-  ungroup() %>% 
-  mutate(year = year(date)) %>% 
-  select(-date) %>% 
-  left_join(., data_recruits %>% 
-                group_by(island, year) %>% 
-                summarise(recruit = sum(recruit))) %>% 
-  drop_na(recruit)
-
-# 2. Linear regression ----
-
-lm_result <- lm(recruit ~ cover*island, data = data_all)
-
-summary(lm_result)
-
-lm_result$coefficients
-
-# 3. Make the plot ----
-
-ggplot(data = data_all, aes(x = cover, y = recruit)) +
-  geom_point(col = "#4183d7", alpha = 0.75) +
-  geom_abline(intercept = 4.2155, slope = 0.0651) +
-  #geom_smooth(method = lm, color = "#4183d7") +
-  labs(x = "Hard coral cover (%)", y = "Coral recruit (n.m-2)") +
-  annotate(geom = "text", Inf, -Inf, 
-           label = paste0("Adjusted r² = ", round(summary(lm_result)$r.squared, 3)), 
-           color = "black",
-           hjust = 1.1, vjust = -2,
-           family = font_choose_graph)
-
-# 4. Save the plot ----
-
-ggsave("./../figs/01_relationship-between-hcc-and-coral-recruit.png", height = 5, width = 7) # PNG
-
-```
-
-# Figure SST to HCC
-
-## Load SST data
-
-```{r}
-
-# 1. Load data and misc. modifications ----
-
-data_sst <- read.csv("./../data/02_sst-extracted.csv") %>% 
-  # Make the mean by island
-  group_by(island, date) %>% 
-  summarise(sst = mean(sst)) %>% 
-  mutate(date = as.Date(date))
-
-# 2. Calculate DHW ----
-
-data_dhw <- data_sst %>% 
-  # Calculate mean sst by month for each site
-  mutate(month = month(date)) %>% 
-  group_by(island, month) %>% 
-  summarise(mean = mean(sst)) %>% 
-  ungroup() %>% 
-  # Extract Maximum Monthly Mean (MMM) for each site
+plot_sst <- data_dhw_island %>% 
   group_by(island) %>% 
-  filter(mean == max(mean)) %>% 
-  # Calculate the bleaching threshold (MMM + 1°C)
-  mutate(threshold = mean + 1) %>% 
-  ungroup() %>% 
-  # Join with the SST data
-  left_join(data_sst, .) %>%
-  # Calculate Degree Heating Weeks
-  group_by(island) %>% 
-  mutate(delta = ifelse(sst >= threshold, sst - threshold, 0)) %>% 
-  arrange(date) %>% 
-  mutate(dhw = roll_sum(x = delta, n = 84, align = "right", fill = NA)) %>% # 7 days * 12 weeks = 84 days
-  select(-delta, -mean, -month) %>% 
-  # Calculate mean across all year
-  mutate(mean = mean(sst))
-
-```
-
-## Graph by island
-
-```{r fig.height=10, fig.width=40}
-
-# 1. Create all the plots ----
-
-# 1.1 data_sst plots --
-
-plot_data_sst <- data_dhw %>% 
-  group_by(island) %>% 
-  do(plots = ggplot(data = ., aes(x = date, y = sst)) +
-              geom_path(color = "#6c7a89") +
-              facet_wrap(~island, nrow = 1) +
-              labs(x = NULL, y = "Sea Surface Temperature (°C)") +
-              lims(x = c(as.Date("2005-01-01"), as.Date("2021-01-01"))))
-
-# 1.2 data_sst_mmm plots --
-
-plot_data_dhw <- data_dhw %>% 
-  group_by(island) %>% 
-  do(plots = ggplot(data = ., aes(x = date, y = dhw)) +
-               # Warning (NOAA)*
-               annotate("rect", xmin = as.Date("2005-01-01"), xmax = as.Date("2021-01-01"), 
-                        ymin = 0, ymax = 4, fill = "#fcd670", alpha = .2) +
-               # Alert level 1 (NOAA)*
-               annotate("rect", xmin = as.Date("2005-01-01"), xmax = as.Date("2021-01-01"), 
-                        ymin = 4, ymax = 8, fill = "#eb9532", alpha = .2) +
-               geom_hline(yintercept = 4, linetype = "dashed") +
-               # Alert level 2 (NOAA)*
-               geom_hline(yintercept = 8, linetype = "dashed") +
-               annotate("rect", xmin = as.Date("2005-01-01"), xmax = as.Date("2021-01-01"), 
-                        ymin = 8, ymax = Inf, fill = "#d64541", alpha = .2) +
-               # DHW
-               geom_path(col = "black") +
-               facet_wrap(~island, nrow = 3) +
-               labs(x = NULL, y = "Degree Heating Weeks (°C)") +
-               lims(x = c(as.Date("2005-01-01"), as.Date("2021-01-01")), y = c(0, 30)))
-
-# 1.3 data_bleaching_mean plots --
-
-plot_data_bleaching_mean <- data_bleaching_mean %>% 
-  group_by(island) %>% 
-  do(plots = ggplot() +
-               geom_pointrange(data = ., 
-                               aes(x = date, 
-                                   y = bleaching_mean, 
-                                   ymin = bleaching_mean-bleaching_sd, 
-                                   ymax = bleaching_mean+bleaching_sd), col = "red") +
-               geom_path(data = ., aes(x = date, y = bleaching_mean), col = "red") +
-               facet_wrap(~island, nrow = 3) +
-               labs(x = NULL, y = "Bleaching Prevalence (%)") +
-               lims(x = c(as.Date("2005-01-01"), as.Date("2021-01-01")), y = c(0, 60)))
-
-# 1.4 data_hcc_mean plots --
-
-plot_data_hcc_mean <- data_benthic %>%
-  filter(category == "Hard corals")
+  do(plot_list = ggplot(data = ., aes(x = date, y = sst)) +
+       geom_path(color = "#6c7a89") +
+       # Labs and lims
+       labs(x = NULL, y = "SST (°C)") +
+       lims(x = c(as.Date("2005-01-01"), as.Date("2021-01-01")), y = c(25, 33)) +
+       theme(axis.text.x = element_blank(),
+             axis.ticks.x = element_blank()) +
+       facet_wrap(~island))
   
-  
-  
-  
-  
+# 1.2 DHW plot --
+
+plot_dhw <- data_dhw_island %>% 
   group_by(island) %>% 
-  do(plots = ggplot() +
-               geom_pointrange(data = ., 
-                               aes(x = date, 
-                                   y = cover_mean, 
-                                   ymin = cover_mean-cover_sd, 
-                                   ymax = cover_mean+cover_sd), col = "red") +
-               geom_path(data = ., aes(x = date, y = cover_mean), col = "red") +
-               facet_wrap(~island, nrow = 3) +
-               labs(x = "Year", y = "Hard Coral Cover (%)") +
-               lims(x = c(as.Date("2005-01-01"), as.Date("2020-01-01")), y = c(0, 100)))
+  do(plot_list = ggplot(data = ., aes(x = date, y = dhw)) +
+       # Warning (NOAA)*
+       annotate("rect", xmin = as.Date("2005-01-01"), xmax = as.Date("2021-01-01"), 
+                ymin = 0, ymax = 4, fill = "#fcd670", alpha = .2) +
+       # Alert level 1 (NOAA)*
+       annotate("rect", xmin = as.Date("2005-01-01"), xmax = as.Date("2021-01-01"), 
+                ymin = 4, ymax = 8, fill = "#eb9532", alpha = .2) +
+       geom_hline(yintercept = 4, linetype = "dashed") +
+       # Alert level 2 (NOAA)*
+       geom_hline(yintercept = 8, linetype = "dashed") +
+       annotate("rect", xmin = as.Date("2005-01-01"), xmax = as.Date("2021-01-01"), 
+                ymin = 8, ymax = Inf, fill = "#d64541", alpha = .2) +
+       geom_path(col = "black") +
+       # Labs and lims
+       labs(x = NULL, y = "DHW (°C)") +
+       lims(x = c(as.Date("2005-01-01"), as.Date("2021-01-01")), y = c(0, 12)) +
+       theme(axis.text.x = element_blank(),
+             axis.ticks.x = element_blank()) +
+       facet_wrap(~island))
 
-# 2. Combine and save the plots ----
+# 1.3 Bleaching prevalence --
 
-plot_grid(plotlist = c(plot_data_sst$plots, 
-                       plot_data_sst_mmm$plots,
-                       plot_data_bleaching_mean$plots), nrow = 3, align = "v")
-ggsave("./../figs/04_combined-plots-sst-dhw-blch-hcc.png", height = 10, width = 40) # PNG
-
-```
-
-## Graph all island
-
-```{r fig.height=9, fig.width=5}
-
-# 1. Load data and misc. modifications ----
-
-data_sst_all <- read.csv("./../data/02_sst-extracted.csv") %>% 
-  group_by(date) %>% 
-  summarise(sst = mean(sst)) %>% 
-  mutate(date = as.Date(date))
-
-# 2. Calculate DHW ----
-
-data_dhw <- data_sst %>% 
-  # Calculate mean sst by month for each site
-  mutate(month = month(date)) %>% 
-  group_by(month) %>% 
-  summarise(mean = mean(sst)) %>% 
-  ungroup() %>% 
-  # Extract Maximum Monthly Mean (MMM) for each site
-  filter(mean == max(mean)) %>% 
-  # Calculate the bleaching threshold (MMM + 1°C)
-  mutate(threshold = mean + 1) %>% 
-  ungroup() %>% 
-  # Join with the SST data
-  bind_cols(data_sst, .) %>% 
-  # Calculate Degree Heating Weeks
-  mutate(delta = ifelse(sst >= threshold, sst - threshold, 0)) %>% 
-  arrange(date) %>% 
-  mutate(dhw = roll_sum(x = delta, n = 84, align = "right", fill = NA)) %>% # 7 days * 12 weeks = 84 days
-  select(-delta, -mean, -month) %>% 
-  # Calculate mean across all year
-  mutate(mean = mean(sst))
-
-# 3. Make the plots ----
-
-# 3.1 SST plot --
-
-plot_sst <- ggplot(data = data_dhw, aes(x = date, y = sst)) +
-  geom_path(color = "#6c7a89") +
-  geom_hline(yintercept = max(data_dhw$threshold), linetype = "dashed") +
-  # DHW events
-  geom_vline(xintercept = as.Date("2010-06-12"), col = "red") +
-  geom_vline(xintercept = as.Date("2016-06-12"), col = "red") +
-  geom_vline(xintercept = as.Date("2019-06-12"), col = "red") +
-  geom_vline(xintercept = as.Date("2020-06-12"), col = "red") +
-  # Labs and lims
-  labs(x = NULL, y = "SST (°C)") +
-  lims(x = c(as.Date("2005-01-01"), as.Date("2021-01-01"))) +
-  theme(axis.text.x = element_blank(),
-        axis.ticks.x = element_blank())
-
-# 3.2 DHW plot --
-
-plot_dhw <- ggplot(data = data_dhw, aes(x = date, y = dhw)) +
-  # Warning (NOAA)*
-  annotate("rect", xmin = as.Date("2005-01-01"), xmax = as.Date("2021-01-01"), 
-           ymin = 0, ymax = 4, fill = "#fcd670", alpha = .2) +
-  # Alert level 1 (NOAA)*
-  annotate("rect", xmin = as.Date("2005-01-01"), xmax = as.Date("2021-01-01"), 
-           ymin = 4, ymax = 8, fill = "#eb9532", alpha = .2) +
-  geom_hline(yintercept = 4, linetype = "dashed") +
-  # Alert level 2 (NOAA)*
-  geom_hline(yintercept = 8, linetype = "dashed") +
-  annotate("rect", xmin = as.Date("2005-01-01"), xmax = as.Date("2021-01-01"), 
-           ymin = 8, ymax = Inf, fill = "#d64541", alpha = .2) +
-  # DHW
-  geom_path(col = "black") +
-  # DHW events
-  geom_vline(xintercept = as.Date("2010-06-12"), col = "red") +
-  geom_vline(xintercept = as.Date("2016-06-12"), col = "red") +
-  geom_vline(xintercept = as.Date("2019-06-12"), col = "red") +
-  geom_vline(xintercept = as.Date("2020-06-12"), col = "red") +
-  # Labs and lims
-  labs(x = NULL, y = "DHW (°C)") +
-  lims(x = c(as.Date("2005-01-01"), as.Date("2021-01-01")), y = c(0, 10)) +
-  theme(axis.text.x = element_blank(),
-        axis.ticks.x = element_blank())
-
-# 3.3 Bleaching prevalence --
-
-data_bleaching_mean <- data_bleaching %>% 
-  group_by(date) %>% 
+plot_blch <- data_bleaching %>% 
+  group_by(date, island) %>% 
   summarise(bleaching_mean = mean(bleaching),
-            bleaching_sd = sd(bleaching))
+            bleaching_sd = sd(bleaching)) %>% 
+  ungroup() %>% 
+  mutate(upper_bound = bleaching_mean+bleaching_sd,
+         lower_bound = bleaching_mean-bleaching_sd) %>% 
+  group_by(island) %>% 
+  do(plot_list = ggplot(data = .) +
+       geom_ribbon(aes(x = date, ymin = lower_bound, ymax = upper_bound), 
+              fill = "#e4e9ed", color = "grey", alpha = 0.75) +
+       geom_path(aes(x = date, y = bleaching_mean)) +
+       geom_point(aes(x = date, y = bleaching_mean), shape = 21, color = "black", fill = "#e4e9ed", size = 2) +
+       labs(x = NULL, y = "Bleaching (%)") +
+       lims(x = c(as.Date("2005-01-01"), as.Date("2021-01-01")), y = c(0, 40)) +
+       theme(axis.text.x = element_blank(),
+             axis.ticks.x = element_blank()))
 
-plot_blch <- ggplot(data = data_bleaching_mean) +
-  geom_pointrange(aes(x = date, y = bleaching_mean,
-                      ymin = bleaching_mean-bleaching_sd, 
-                      ymax = bleaching_mean+bleaching_sd)) +
-  geom_path(data = data_bleaching_mean, aes(x = date, y = bleaching_mean)) +
-  # DHW events
-  geom_vline(xintercept = as.Date("2010-06-12"), col = "red") +
-  geom_vline(xintercept = as.Date("2016-06-12"), col = "red") +
-  geom_vline(xintercept = as.Date("2019-06-12"), col = "red") +
-  geom_vline(xintercept = as.Date("2020-06-12"), col = "red") +
-  # Labs and lims
-  labs(x = NULL, y = "Bleaching (%)") +
-  lims(x = c(as.Date("2005-01-01"), as.Date("2021-01-01"))) +
-  theme(axis.text.x = element_blank(),
-        axis.ticks.x = element_blank())
+# 1.4 HCC --
 
-# 3.4 HCC --
-
-data_benthic_mean <- data_benthic %>%
+plot_hcc <- data_benthic %>%
   filter(category == "Hard corals") %>% 
   group_by(replicate, site, island, date) %>% 
   summarise(cover = sum(cover)) %>% 
   ungroup() %>% 
-  group_by(date) %>% 
+  group_by(date, island) %>% 
   summarise(cover_mean = mean(cover),
             cover_sd = sd(cover)) %>% 
-  ungroup()
+  ungroup() %>% 
+  mutate(upper_bound = cover_mean+cover_sd,
+         lower_bound = cover_mean-cover_sd) %>% 
+  group_by(island) %>% 
+  do(plot_list = ggplot(data = .) +
+       geom_ribbon(aes(x = date, ymin = lower_bound, ymax = upper_bound), 
+                   fill = "#d64541", color = "#d64541", alpha = 0.1) +
+       geom_path(aes(x = date, y = cover_mean)) +
+       geom_point(aes(x = date, y = cover_mean), shape = 21, color = "black", fill = "#d64541", size = 2) +
+       # Labs and lims
+       labs(x = NULL, y = "HCC (%)") +
+       lims(x = c(as.Date("2005-01-01"), as.Date("2021-01-01")), y = c(0, 60)) +
+       theme(axis.text.x = element_blank(),
+             axis.ticks.x = element_blank()))
 
-plot_hcc <- ggplot(data = data_benthic_mean, aes(x = date, y = cover)) +
-  geom_point(color = "grey", alpha = 0.5) +
-  geom_smooth() +
-  # DHW events
-  geom_vline(xintercept = as.Date("2010-06-12"), col = "red") +
-  geom_vline(xintercept = as.Date("2016-06-12"), col = "red") +
-  geom_vline(xintercept = as.Date("2019-06-12"), col = "red") +
-  geom_vline(xintercept = as.Date("2020-06-12"), col = "red") +
-  # Labs and lims
-  labs(x = NULL, y = "HCC (%)") +
-  lims(x = c(as.Date("2005-01-01"), as.Date("2021-01-01")))
+# 1.5 Recruits --
 
-# 4. Combine plots ----
+plot_recruit <- data_recruits %>% 
+  # Remove 0 and NA
+  drop_na(recruit) %>% 
+  filter(recruit != 0) %>% 
+  # Sum of recruits between genus
+  group_by(date, island) %>% 
+  summarise(recruit = sum(recruit)) %>% 
+  ungroup() %>% 
+  group_by(island) %>% 
+  do(plot_list = ggplot(data = .) +
+       geom_path(aes(x = date, y = recruit)) +
+       geom_point(aes(x = date, y = recruit), shape = 21, color = "black", fill = "#eb974e", size = 2) +
+       labs(x = NULL, y = bquote("Recruit (n."~m^-2*")")) +
+       lims(x = c(as.Date("2005-01-01"), as.Date("2021-01-01")), y = c(0, 10)))
 
-plot_grid(plot_sst, plot_dhw, plot_blch, plot_hcc, nrow = 4, align = "v")
+# 2. Combine plots ----
 
-ggsave("./../figs/04_combined-plots-sst-dhw-blch-hcc.png", height = 9, width = 5) # PNG
+plot_grid(plotlist = c(plot_sst$plot_list, plot_dhw$plot_list, 
+                       plot_blch$plot_list, plot_hcc$plot_list, plot_recruit$plot_list), ncol = 21, align = "v")
 
+# 3. Save the plot ----
+
+ggsave("./../figs/supp-fig-5_combined-plots-sst-dhw-blch-hcc-recruit-by-site.png", height = 8, width = 45) # PNG
+
+# 4. Remove useless objects ----
+
+rm(plot_sst, plot_dhw, plot_blch, plot_hcc, plot_recruit)
+  
 ```
 
 # Reproducibility
