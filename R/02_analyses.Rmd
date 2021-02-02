@@ -452,19 +452,23 @@ data_nmds_transf <- decostand(data_nmds, "chi.square")
 
 nmds_results <- metaMDS(data_nmds_transf, distance = "bray", k = 2, trymax = 100)
 
+stressplot(nmds_results)
+
+nmds_results$stress
+
 # 3. Extract coordinates ----
 
 # 3.1 Extract year coordinates --
 
 nmds_results_cat <- data.frame(category = rownames(nmds_results$points),
-                                NMDS1 = nmds_results$points[,1],
-                                NMDS2 = nmds_results$points[,2])
+                               NMDS1 = nmds_results$points[,1],
+                               NMDS2 = nmds_results$points[,2])
 
 # 3.2 Extract category coordinates --
 
 nmds_results_year <- data.frame(label = rownames(nmds_results$species), 
-                               NMDS1 = nmds_results$species[,1], 
-                               NMDS2 = nmds_results$species[,2]) %>% 
+                                NMDS1 = nmds_results$species[,1], 
+                                NMDS2 = nmds_results$species[,2]) %>% 
   mutate(island = str_split_fixed(label, "_", 2)[,1],
          year = str_split_fixed(label, "_", 2)[,2])
 
@@ -533,21 +537,25 @@ data_nmds_transf <- decostand(data_nmds, "chi.square")
 
 nmds_results <- metaMDS(data_nmds_transf, distance = "bray", k = 2, trymax = 100)
 
+stressplot(nmds_results)
+
+nmds_results$stress
+
 # 3. Plot the results ----
 
 # 3.1 Extract year coordinates --
 
 nmds_results_year <- data.frame(label = rownames(nmds_results$species), 
-                               NMDS1 = nmds_results$species[,1], 
-                               NMDS2 = nmds_results$species[,2]) %>% 
+                                NMDS1 = nmds_results$species[,1], 
+                                NMDS2 = nmds_results$species[,2]) %>% 
   mutate(island = str_split_fixed(label, "_", 2)[,1],
          year = str_split_fixed(label, "_", 2)[,2])
 
 # 3.2 Extract category coordinates --
 
 nmds_results_cat <- data.frame(subcategory = rownames(nmds_results$points),
-                                NMDS1 = nmds_results$points[,1],
-                                NMDS2 = nmds_results$points[,2])
+                               NMDS1 = nmds_results$points[,1],
+                               NMDS2 = nmds_results$points[,2])
 
 # 3.3 Create the convex hull --
 
@@ -681,9 +689,13 @@ data_nmds <- data_recruits %>%
 
 # 2. Make the NMDS ----
 
-data_nmds_transf <- decostand(data_nmds, "chi.square")
+data_nmds_transf <- decostand(data_nmds, "hellinger")
 
 nmds_results <- metaMDS(data_nmds_transf, distance = "bray", k = 2, trymax = 100)
+
+stressplot(nmds_results)
+
+nmds_results$stress
 
 # 3. Plot the results ----
 
@@ -904,7 +916,7 @@ ggplot(data = data_hcc_recruit, aes(x = cover_sum, y = recruit_sum)) +
 
 # 4. Save the plot ----
 
-ggsave("./../figs/supp-fig-6_linear-reg-hcc-and-recruits.png", height = 5, width = 8) # PNG
+ggsave("./../figs/supp-fig-6_linear-reg-hcc-and-recruits.png", height = 4, width = 6) # PNG
 
 # 5. Remove useless objects ----
 
